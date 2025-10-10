@@ -1,104 +1,192 @@
-# Cruxy - The AI-Powered Discord Community Manager
+# Cruxy – The AI Powered Discord Community Manager
 
-[](https://www.python.org/downloads/)
-[](https://github.com/Rapptz/discord.py)
-[](https://opensource.org/licenses/MIT)
+[Python Downloads](https://www.python.org/downloads/)
+[discord.py](https://github.com/Rapptz/discord.py)
+[MIT License](https://opensource.org/licenses/MIT)
 
-Cruxy is a next-generation, multi-functional Discord bot that leverages the power of Large Language Models (LLMs) to automate the most complex aspects of server setup and management. It's designed to be an intelligent co-pilot for community managers, transforming natural language prompts into perfectly structured and permissioned Discord servers.
+Cruxy is an intelligent, multi-functional Discord bot that combines automation and artificial intelligence to handle community management, moderation, and engagement tasks. It transforms natural language instructions into fully structured Discord setups, making server management faster, smarter, and simpler.
 
-## About The Project
+---
 
-Setting up a new Discord server is a tedious process. Creating roles, categories, and dozens of channels, then painstakingly configuring permissions for each one, can take hours of manual work. Cruxy was built to solve this problem.
+## About the Project
 
-Instead of clicking through menus, you can simply tell Cruxy the kind of server you want, and it will generate a complete, ready-to-use server layout in seconds. It goes beyond simple templates by dynamically creating roles and permissions tailored to your specific theme, making it a truly intelligent setup tool.
+Creating a Discord server often involves repetitive steps such as creating roles, channels, and assigning permissions. Cruxy automates all of it. With simple slash commands, you can instruct it to design, configure, and even moderate your community server intelligently.
+
+Cruxy is built for server owners who want to focus on growing their communities rather than managing configurations.
+
+---
 
 ## Key Features
 
-  * **✨ AI-Powered Server Builder**: The flagship feature. Use the `/buildserver` command with a theme (e.g., "A server for a high-tech startup"), and Cruxy's AI will:
-      * Invent relevant roles (e.g., `Founder`, `Developer`, `Investor`).
-      * Design a complete structure of categories and channels.
-      * Apply complex, logical permissions to restrict channels to their relevant roles.
-      * Provide a full preview and confirmation step before making any changes.
-  * **🤖 Conversational AI**: Mention `@Cruxy` with a question or a prompt to engage in a continuous, context-aware conversation powered by Google's Gemini model.
-  * **🛡️ Automated Moderation**: A built-in system that automatically detects and deletes messages containing profanity. It implements a persistent, database-backed warning system that can automatically kick users who repeatedly break the rules.
-  * **🎉 Event Scheduling**: Easily schedule server events with the `/event` command, which automatically sends a reminder to a designated channel just before the event starts.
-  * **📈 Persistent Leveling System**: Rewards server activity by granting XP for messages. All user levels and XP are stored in a database, so progress is never lost.
-  * **⚙️ Robust Admin Utilities**: Includes standard commands for checking warnings, resetting warnings, setting AFK statuses, and a basic, non-AI server setup command.
+* **AI Powered Server Builder**
+  The `/buildserver` command generates complete Discord servers based on your input theme. It:
+
+  * Creates relevant roles and permissions
+  * Builds categories and channels logically
+  * Shows a confirmation preview before applying
+
+* **Conversational AI**
+  Mention `@Cruxy` to start context aware conversations powered by Google Gemini (Generative AI).
+
+* **Automated Moderation**
+  Automatically detects and deletes profanity, issues warnings, and kicks users after repeated violations.
+
+* **Event Scheduling**
+  The `/event` command helps you organize events and notifies users before start time.
+
+* **Leveling System**
+  Users earn XP for participation, level up over time, and retain progress via persistent storage.
+
+* **Admin Tools**
+  Commands for managing warnings, resetting data, setting AFK status, syncing commands, and more.
+
+---
 
 ## Built With
 
-  * [Python 3.10+](https://www.python.org/)
-  * [discord.py](https://github.com/Rapptz/discord.py) - The primary library for interacting with the Discord API.
-  * [Google Generative AI (Gemini)](https://ai.google.dev/) - The LLM powering the core AI features.
-  * [aiosqlite](https://github.com/omnilib/aiosqlite) - Asynchronous database operations for a responsive bot.
-  * [better\_profanity](https://pypi.org/project/better-profanity/) - For the automated moderation filter.
-  * [python-dotenv](https://pypi.org/project/python-dotenv/) - For managing environment variables.
+* **Python 3.10+**
+* **discord.py** – Discord API integration
+* **google-generativeai** – Gemini model for AI interactions
+* **aiosqlite** – Asynchronous SQLite operations
+* **python-dotenv** – Environment variable management
+* **better-profanity** or **profanity-check** – Profanity filtering
+* **asyncio, json, datetime, random** – Core Python modules used internally
 
-## Getting Started
+---
 
-To get a local copy up and running, follow these simple steps.
+## Prerequisites
 
-### Prerequisites
+Before installation, ensure the following:
 
-  * Python 3.10 or higher.
-  * A Discord account and a new Discord Application.
-  * A Google AI Studio API key.
+### 1. Python
 
-### Installation
+Install Python 3.10 or higher.
 
-1.  **Clone the repository:**
+```bash
+python --version
+```
 
-    ```sh
-    git clone https://github.com/your_username/Cruxy.git
-    cd Cruxy
-    ```
+### 2. Discord Application
 
-2.  **Set up your environment variables:**
-    Create a file named `.env` in the root of the project folder and add the following, replacing the placeholder text with your actual keys:
+* Create a new application in the [Discord Developer Portal](https://discord.com/developers/applications).
+* Under **Bot Settings**, enable:
 
-    ```env
-    DISCORD_TOKEN=YOUR_DISCORD_BOT_TOKEN_HERE
-    GEMINI_API_KEY=YOUR_GOOGLE_AI_STUDIO_API_KEY_HERE
-    ```
+  * **SERVER MEMBERS INTENT**
+  * **MESSAGE CONTENT INTENT**
+* Copy your **bot token** for later.
 
-      * You can get your `DISCORD_TOKEN` from the "Bot" page of your application in the [Discord Developer Portal](https://www.google.com/search?q=https://discord.com/developers/applications). Remember to enable the **Server Members Intent** and **Message Content Intent**.
-      * You can get your `GEMINI_API_KEY` from [Google AI Studio](https://aistudio.google.com/app/apikey).
+### 3. Google AI Studio API Key
 
-3.  **Run the bot:**
+Obtain a Gemini API key from [Google AI Studio](https://aistudio.google.com/app/apikey).
 
-    ```sh
-    python bot.py
-    ```
+### 4. Environment Variables
+
+Create a `.env` file in the project root with the following:
+
+```env
+DISCORD_TOKEN=your_discord_bot_token
+GEMINI_API_KEY=your_gemini_api_key
+```
+
+### 5. Install Dependencies
+
+Install the required Python packages.
+
+```bash
+pip install discord.py google-generativeai aiosqlite python-dotenv better-profanity
+```
+
+If you maintain a `requirements.txt`, you can instead run:
+
+```bash
+pip install -r requirements.txt
+```
+
+---
+
+## Installation
+
+1. **Clone the Repository**
+
+   ```bash
+   git clone https://github.com/rigvedbhat/Cruxy---ModVerse.git
+   cd Cruxy---ModVerse
+   ```
+
+2. **Configure Environment Variables**
+   Ensure your `.env` file has valid tokens and keys.
+
+3. **Run the Bot**
+
+   ```bash
+   python bot.py
+   ```
+
+You should see a console message indicating successful connection and cog loading.
+
+---
 
 ## Usage
 
-Cruxy primarily uses Discord's built-in slash commands. Here are some of the main ones:
+Cruxy uses Discord’s slash commands. Some examples:
 
-  * **Build a server with AI:**
-    `/buildserver theme: A professional server for a Valorant esports team`
+* **Build a server**
 
-  * **Chat with the AI:**
-    `@Cruxy How do I write a good README file for my project?`
+  ```
+  /buildserver theme: A futuristic tech startup server
+  ```
 
-  * **Schedule an event:**
-    `/event name: Movie Night date: 2025-10-25 time: 18:30 description: We'll be watching The Matrix!`
+* **Chat with the AI**
 
-  * **Check your level:**
-    `/level`
+  ```
+  @Cruxy What are the best community engagement ideas?
+  ```
+
+* **Schedule an event**
+
+  ```
+  /event name: Team Meeting date: 2025-10-15 time: 18:00 description: Weekly progress check
+  ```
+
+* **Check level**
+
+  ```
+  /level
+  ```
+
+* **Sync commands manually (Owner only)**
+
+  ```
+  !sync
+  ```
+
+---
 
 ## Roadmap
 
-Cruxy is currently a Discord-specific prototype with a grander vision. Future plans include:
+* Natural language server modification
+* Web dashboard for multi-server management
+* Cross-platform community management (Slack, Telegram)
+* Public server template library
 
-  * **Natural Language Server Editing:** A premium feature allowing admins to modify the server with commands like, "@Cruxy, create a private channel named \#alpha-testing for the @Developers role."
-  * **Cross-Platform Support:** Refactoring the core logic into a platform-agnostic service that can manage communities on Slack, Telegram, and more from a single dashboard.
-  * **Web Dashboard:** A central web interface for managing all aspects of the bot and connected communities.
-  * **Community Template Library:** Allowing users to save and share their AI-generated server structures.
+---
 
-See the [open issues](placeholder for now) for a full list of proposed features (and known issues).
+## Troubleshooting
+
+* **Bot not responding:** Ensure intents are enabled in the Discord Developer Portal.
+* **Gemini AI not working:** Verify `GEMINI_API_KEY` in `.env` and confirm access to the Gemini API.
+* **Permission issues:** Check if the bot has Administrator privileges or necessary permissions in server settings.
+
+---
 
 ## Contact
 
-Name - Rigved M. Bhat, Email - rigvedmb2@gmail.com
+**Developer:** Rigved M. Bhat
+**Email:** [rigvedmb2@gmail.com](mailto:rigvedmb2@gmail.com)
+**Bot Invite:** [Invite Cruxy](https://discord.com/oauth2/authorize?client_id=1361039241760604261&permissions=8&integration_type=0&scope=bot)
 
-Bot Invite Link - https://discord.com/oauth2/authorize?client_id=1361039241760604261&permissions=8&integration_type=0&scope=bot
+---
+
+## License
+
+This project is licensed under the [MIT License](https://opensource.org/licenses/MIT).
