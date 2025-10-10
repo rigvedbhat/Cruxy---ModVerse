@@ -53,13 +53,7 @@ To get a local copy up and running, follow these simple steps.
     cd Cruxy
     ```
 
-2.  **Install the required dependencies:**
-
-    ```sh
-    pip install -r requirements.txt
-    ```
-
-3.  **Set up your environment variables:**
+2.  **Set up your environment variables:**
     Create a file named `.env` in the root of the project folder and add the following, replacing the placeholder text with your actual keys:
 
     ```env
@@ -70,7 +64,7 @@ To get a local copy up and running, follow these simple steps.
       * You can get your `DISCORD_TOKEN` from the "Bot" page of your application in the [Discord Developer Portal](https://www.google.com/search?q=https://discord.com/developers/applications). Remember to enable the **Server Members Intent** and **Message Content Intent**.
       * You can get your `GEMINI_API_KEY` from [Google AI Studio](https://aistudio.google.com/app/apikey).
 
-4.  **Run the bot:**
+3.  **Run the bot:**
 
     ```sh
     python bot.py
@@ -101,11 +95,7 @@ Cruxy is currently a Discord-specific prototype with a grander vision. Future pl
   * **Web Dashboard:** A central web interface for managing all aspects of the bot and connected communities.
   * **Community Template Library:** Allowing users to save and share their AI-generated server structures.
 
-See the [open issues](placeholder) for a full list of proposed features (and known issues).
-
-## License
-
-Distributed under the MIT License. See `LICENSE.txt` for more information.
+See the [open issues](placeholder for now) for a full list of proposed features (and known issues).
 
 ## Contact
 
