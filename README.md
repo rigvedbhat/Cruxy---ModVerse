@@ -2,7 +2,7 @@
 
 [Python Downloads](https://www.python.org/downloads/)
 [discord.py](https://github.com/Rapptz/discord.py)
-[MIT License](https://opensource.org/licenses/MIT)
+
 
 Cruxy is an intelligent, multi-functional Discord bot that combines automation and artificial intelligence to handle community management, moderation, and engagement tasks. It transforms natural language instructions into fully structured Discord setups, making server management faster, smarter, and simpler.
 
