@@ -189,4 +189,4 @@ Cruxy uses Discord’s slash commands. Some examples:
 
 ## License
 
-This project is licensed under the [MIT License](https://opensource.org/licenses/MIT).
+This project is licensed under the GNU General Public License v3.0. See the LICENSE file in the repository for the full license text.
