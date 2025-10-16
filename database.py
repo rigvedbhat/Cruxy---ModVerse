@@ -1,4 +1,3 @@
-# database.py
 import aiosqlite
 
 class PersistentDB:
@@ -8,80 +7,197 @@ class PersistentDB:
 
     async def connect(self):
         self.conn = await aiosqlite.connect(self.path)
-        
-        # Table for storing user warnings
+        await self.conn.execute('PRAGMA foreign_keys = ON;')
+
         await self.conn.execute('''
             CREATE TABLE IF NOT EXISTS warnings (
-                guild_id INTEGER,
-                user_id INTEGER,
-                count INTEGER,
+                guild_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                count INTEGER DEFAULT 1,
                 PRIMARY KEY (guild_id, user_id)
             )
         ''')
-        
-        # NEW: Table for storing user XP and levels
+
         await self.conn.execute('''
             CREATE TABLE IF NOT EXISTS user_data (
-                guild_id INTEGER,
-                user_id INTEGER,
+                guild_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
                 xp INTEGER DEFAULT 0,
                 level INTEGER DEFAULT 0,
                 PRIMARY KEY (guild_id, user_id)
             )
         ''')
-        
+
+        await self.conn.execute('''
+            CREATE TABLE IF NOT EXISTS afk_users (
+                guild_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                message TEXT,
+                PRIMARY KEY (guild_id, user_id)
+            )
+        ''')
+
+        await self.conn.execute('''
+            CREATE TABLE IF NOT EXISTS reaction_roles (
+                message_id INTEGER PRIMARY KEY,
+                guild_id INTEGER NOT NULL,
+                channel_id INTEGER NOT NULL
+            )
+        ''')
+
+        await self.conn.execute('''
+            CREATE TABLE IF NOT EXISTS reaction_role_mappings (
+                message_id INTEGER NOT NULL,
+                emoji TEXT NOT NULL,
+                role_id INTEGER NOT NULL,
+                PRIMARY KEY (message_id, emoji),
+                FOREIGN KEY (message_id) REFERENCES reaction_roles(message_id) ON DELETE CASCADE
+            )
+        ''')
+
+        await self.conn.execute('''
+            CREATE TABLE IF NOT EXISTS automod_settings (
+                guild_id INTEGER PRIMARY KEY,
+                warning_limit INTEGER DEFAULT 3,
+                punishment TEXT DEFAULT 'kick'
+            )
+        ''')
+
         await self.conn.commit()
 
     async def close(self):
         if self.conn:
             await self.conn.close()
 
-    # --- Methods for Warnings (existing functionality) ---
-    async def get_warnings(self, guild_id, user_id):
-        async with self.conn.execute("SELECT count FROM warnings WHERE guild_id=? AND user_id=?", (guild_id, user_id)) as cursor:
+    # ---------- Warning System ----------
+    async def add_warning(self, guild_id, user_id):
+        await self.conn.execute(
+            "INSERT INTO warnings (guild_id, user_id, count) VALUES (?, ?, 1) "
+            "ON CONFLICT(guild_id, user_id) DO UPDATE SET count = count + 1",
+            (guild_id, user_id)
+        )
+        await self.conn.commit()
+
+        async with self.conn.execute(
+            "SELECT count FROM warnings WHERE guild_id=? AND user_id=?", (guild_id, user_id)
+        ) as cursor:
             row = await cursor.fetchone()
             return row[0] if row else 0
 
-    async def add_warning(self, guild_id, user_id):
-        current = await self.get_warnings(guild_id, user_id)
-        if current:
-            await self.conn.execute("UPDATE warnings SET count=? WHERE guild_id=? AND user_id=?", (current + 1, guild_id, user_id))
-        else:
-            await self.conn.execute("INSERT INTO warnings VALUES (?, ?, 1)", (guild_id, user_id))
-        await self.conn.commit()
+    async def get_warnings(self, guild_id, user_id):
+        async with self.conn.execute(
+            "SELECT count FROM warnings WHERE guild_id=? AND user_id=?", (guild_id, user_id)
+        ) as cursor:
+            row = await cursor.fetchone()
+            return row[0] if row else 0
 
     async def reset_warnings(self, guild_id, user_id):
         await self.conn.execute("DELETE FROM warnings WHERE guild_id=? AND user_id=?", (guild_id, user_id))
         await self.conn.commit()
 
-    # --- NEW: Methods for XP and Levels ---
-    async def get_user_data(self, guild_id, user_id):
-        async with self.conn.execute("SELECT xp, level FROM user_data WHERE guild_id=? AND user_id=?", (guild_id, user_id)) as cursor:
+    # ---------- AutoMod Settings ----------
+    async def get_automod_settings(self, guild_id):
+        async with self.conn.execute(
+            "SELECT warning_limit, punishment FROM automod_settings WHERE guild_id=?",
+            (guild_id,)
+        ) as cursor:
             row = await cursor.fetchone()
-            return {"xp": row[0], "level": row[1]} if row else {"xp": 0, "level": 0}
+            if row:
+                warning_limit = row[0] if row[0] is not None else 3
+                punishment = row[1] if row[1] is not None else "kick"
+                return {"warning_limit": warning_limit, "punishment": punishment}
+            return {"warning_limit": 3, "punishment": "kick"}
 
-    async def add_xp(self, guild_id, user_id, xp_to_add):
-        user_data = await self.get_user_data(guild_id, user_id)
-        new_xp = user_data["xp"] + xp_to_add
-        new_level = user_data["level"]
-        
-        # Check for level up
-        required_xp_for_next_level = 100 * (new_level + 1)
-        if new_xp >= required_xp_for_next_level:
-            new_level += 1
-        
-        # Insert or update the user's data
+    async def set_automod_settings(self, guild_id, limit, punishment):
         await self.conn.execute(
-            "INSERT OR REPLACE INTO user_data (guild_id, user_id, xp, level) VALUES (?, ?, ?, ?)",
-            (guild_id, user_id, new_xp, new_level)
+            "INSERT OR REPLACE INTO automod_settings (guild_id, warning_limit, punishment) VALUES (?, ?, ?)",
+            (guild_id, limit, punishment)
         )
         await self.conn.commit()
-        return new_level
+
+    # ---------- XP System ----------
+    async def add_xp(self, guild_id, user_id, xp_to_add):
+        await self.conn.execute(
+            "INSERT OR IGNORE INTO user_data (guild_id, user_id, xp, level) VALUES (?, ?, 0, 0)",
+            (guild_id, user_id)
+        )
+        await self.conn.execute(
+            "UPDATE user_data SET xp = xp + ? WHERE guild_id = ? AND user_id = ?",
+            (xp_to_add, guild_id, user_id)
+        )
+
+        async with self.conn.execute(
+            "SELECT xp, level FROM user_data WHERE guild_id=? AND user_id=?", (guild_id, user_id)
+        ) as cursor:
+            row = await cursor.fetchone()
+            xp, level = row if row else (0, 0)
+
+        required_xp = (level + 1) * 100
+        if xp >= required_xp:
+            new_level = level + 1
+            new_xp = xp - required_xp
+            await self.conn.execute(
+                "UPDATE user_data SET level = ?, xp = ? WHERE guild_id = ? AND user_id = ?",
+                (new_level, new_xp, guild_id, user_id)
+            )
+            await self.conn.commit()
+            return new_level
+
+        await self.conn.commit()
+        return None
 
     async def get_xp_and_level(self, guild_id, user_id):
-        data = await self.get_user_data(guild_id, user_id)
-        return data["xp"], data["level"]
+        async with self.conn.execute(
+            "SELECT xp, level FROM user_data WHERE guild_id=? AND user_id=?", (guild_id, user_id)
+        ) as cursor:
+            row = await cursor.fetchone()
+            return (row[0], row[1]) if row else (0, 0)
 
-    async def reset_levels(self, guild_id, user_id):
-        await self.conn.execute("UPDATE user_data SET xp=0, level=0 WHERE guild_id=? AND user_id=?", (guild_id, user_id))
+    # ---------- AFK ----------
+    async def set_afk(self, guild_id, user_id, message):
+        await self.conn.execute(
+            "INSERT OR REPLACE INTO afk_users (guild_id, user_id, message) VALUES (?, ?, ?)",
+            (guild_id, user_id, message)
+        )
         await self.conn.commit()
+
+    async def remove_afk(self, guild_id, user_id):
+        await self.conn.execute("DELETE FROM afk_users WHERE guild_id=? AND user_id=?", (guild_id, user_id))
+        await self.conn.commit()
+
+    async def get_afk_user(self, guild_id, user_id):
+        async with self.conn.execute(
+            "SELECT message FROM afk_users WHERE guild_id=? AND user_id=?", (guild_id, user_id)
+        ) as cursor:
+            row = await cursor.fetchone()
+            return row[0] if row else None
+
+    # ---------- Reaction Roles ----------
+    async def add_reaction_role(self, message_id, guild_id, channel_id, emoji, role_id):
+        await self.conn.execute(
+            "INSERT OR IGNORE INTO reaction_roles (message_id, guild_id, channel_id) VALUES (?, ?, ?)",
+            (message_id, guild_id, channel_id)
+        )
+        await self.conn.execute(
+            "INSERT OR REPLACE INTO reaction_role_mappings (message_id, emoji, role_id) VALUES (?, ?, ?)",
+            (message_id, emoji, role_id)
+        )
+        await self.conn.commit()
+
+    async def get_reaction_role(self, message_id, emoji):
+        async with self.conn.execute(
+            "SELECT role_id FROM reaction_role_mappings WHERE message_id=? AND emoji=?",
+            (message_id, str(emoji))
+        ) as cursor:
+            row = await cursor.fetchone()
+            return row[0] if row else None
+
+    async def get_all_reaction_roles(self):
+        roles = {}
+        query = "SELECT message_id, emoji, role_id FROM reaction_role_mappings"
+        async with self.conn.execute(query) as cursor:
+            async for message_id, emoji, role_id in cursor:
+                if message_id not in roles:
+                    roles[message_id] = {}
+                roles[message_id][emoji] = role_id
+        return roles
