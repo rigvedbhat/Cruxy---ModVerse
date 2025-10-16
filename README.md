@@ -92,7 +92,7 @@ GEMINI_API_KEY=your_gemini_api_key
 ### 5. Install Dependencies
 
 ```bash
-pip install discord.py google-generativeai aiosqlite python-dotenv better-profanity
+pip install discord.py google-generativeai aiosqlite python-dotenv better-profanity thefuzz
 ```
 
 Or via `requirements.txt`:
