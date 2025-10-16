@@ -3,6 +3,8 @@ from discord.ext import commands
 from dotenv import load_dotenv
 import os
 import google.generativeai as genai
+from api_server import app, run_api_server  # Import both app and the function
+import threading
 
 def run_bot():
     # --- Configuration ---
@@ -18,42 +20,26 @@ def run_bot():
 
     # --- Bot Setup ---
     intents = discord.Intents.default()
+    intents.guilds = True  # Explicitly enable guilds intent
     intents.members = True
     intents.message_content = True
     intents.reactions = True
 
     bot = commands.Bot(command_prefix="!", intents=intents)
     
-    # --- Remove the default help command ---
     bot.remove_command('help')
 
-    # --- Attach data structures for runtime caching ---
     bot.chats = {}
-    # Reaction role mapping will now be loaded from the DB into this cache on startup
     bot.reaction_role_mapping = {}
-
-    # --- Global constants for Admin cog ---
-    bot.REQUIRED_ROLES = ["Administrator", "Member"]
-    bot.MODERATOR_PERMISSIONS = [
-        "kick_members", "ban_members", "manage_messages", "manage_channels",
-        "manage_roles", "administrator", "view_audit_log"
-    ]
 
     @bot.event
     async def on_ready():
         print(f"Bot is ready. Logged in as {bot.user}")
-        
-        # Set the bot's presence
         await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name="over servers"))
 
-        # Load cogs
         initial_extensions = [
-            'cogs.admin',
-            'cogs.general',
-            'cogs.events',
-            'cogs.moderation',
-            'cogs.ai_commands',
-            'cogs.server_edit'  # <-- CHANGE: Added the new server_edit cog
+            'cogs.admin', 'cogs.general', 'cogs.events', 
+            'cogs.moderation', 'cogs.ai_commands', 'cogs.server_edit'
         ]
         for extension in initial_extensions:
             try:
@@ -68,18 +54,23 @@ def run_bot():
         except Exception as e:
             print(f"❌ Global sync failed: {e}")
 
-    @commands.command(name="sync", description="Manually sync application commands.")
-    @commands.is_owner()
-    async def sync(ctx):
-        try:
-            await ctx.bot.tree.sync()
-            await ctx.send("✅ Application commands have been synced!")
-        except Exception as e:
-            await ctx.send(f"❌ Failed to sync commands: {e}")
+    # --- Start API Server in a separate thread ---
+    api_thread = threading.Thread(target=app.run, kwargs={'debug': True, 'use_reloader': False, 'port': 5000})
+    api_thread.daemon = True
     
-    bot.add_command(sync)
-    
+    @bot.listen()
+    async def on_ready_for_api():
+        # A simple event to signal that the bot is ready before starting the API
+        if not api_thread.is_alive():
+            run_api_server(bot) # Attach bot object to the app
+            api_thread.start()
+            print("API server thread started.")
+
+    # We need to manually add this listener for on_ready_for_api
+    bot.add_listener(on_ready_for_api, 'on_ready')
+
     bot.run(TOKEN)
 
 if __name__ == '__main__':
     run_bot()
+

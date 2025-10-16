@@ -6,8 +6,21 @@ class PersistentDB:
         self.conn = None
 
     async def connect(self):
-        self.conn = await aiosqlite.connect(self.path)
+        # The timeout parameter helps prevent 'database is locked' errors
+        self.conn = await aiosqlite.connect(self.path, timeout=10)
         await self.conn.execute('PRAGMA foreign_keys = ON;')
+        await self.conn.execute('PRAGMA journal_mode=WAL;') # Improves concurrency
+
+        # --- Updated automod_settings schema ---
+        await self.conn.execute('''
+            CREATE TABLE IF NOT EXISTS automod_settings (
+                guild_id INTEGER PRIMARY KEY,
+                profanity_filter_enabled BOOLEAN DEFAULT 1,
+                warning_limit INTEGER DEFAULT 3,
+                punishment_type TEXT DEFAULT 'kick',
+                mute_duration INTEGER DEFAULT 10
+            )
+        ''')
 
         await self.conn.execute('''
             CREATE TABLE IF NOT EXISTS warnings (
@@ -55,14 +68,6 @@ class PersistentDB:
             )
         ''')
 
-        await self.conn.execute('''
-            CREATE TABLE IF NOT EXISTS automod_settings (
-                guild_id INTEGER PRIMARY KEY,
-                warning_limit INTEGER DEFAULT 3,
-                punishment TEXT DEFAULT 'kick'
-            )
-        ''')
-
         await self.conn.commit()
 
     async def close(self):
@@ -95,25 +100,35 @@ class PersistentDB:
         await self.conn.execute("DELETE FROM warnings WHERE guild_id=? AND user_id=?", (guild_id, user_id))
         await self.conn.commit()
 
-    # ---------- AutoMod Settings ----------
+    # ---------- AutoMod Settings (Updated) ----------
     async def get_automod_settings(self, guild_id):
         async with self.conn.execute(
-            "SELECT warning_limit, punishment FROM automod_settings WHERE guild_id=?",
+            "SELECT profanity_filter_enabled, warning_limit, punishment_type, mute_duration FROM automod_settings WHERE guild_id=?",
             (guild_id,)
         ) as cursor:
             row = await cursor.fetchone()
             if row:
-                warning_limit = row[0] if row[0] is not None else 3
-                punishment = row[1] if row[1] is not None else "kick"
-                return {"warning_limit": warning_limit, "punishment": punishment}
-            return {"warning_limit": 3, "punishment": "kick"}
+                return {
+                    "profanityFilter": bool(row[0]),
+                    "warningLimit": row[1],
+                    "limitAction": row[2],
+                    "muteDuration": row[3]
+                }
+        # Return default settings if none are found
+        return {
+            "profanityFilter": True,
+            "warningLimit": 3,
+            "limitAction": 'kick',
+            "muteDuration": 10
+        }
 
-    async def set_automod_settings(self, guild_id, limit, punishment):
+    async def set_automod_settings(self, guild_id, profanity_filter, limit, punishment, mute_duration):
         await self.conn.execute(
-            "INSERT OR REPLACE INTO automod_settings (guild_id, warning_limit, punishment) VALUES (?, ?, ?)",
-            (guild_id, limit, punishment)
+            "INSERT OR REPLACE INTO automod_settings (guild_id, profanity_filter_enabled, warning_limit, punishment_type, mute_duration) VALUES (?, ?, ?, ?, ?)",
+            (guild_id, profanity_filter, limit, punishment, mute_duration)
         )
         await self.conn.commit()
+
 
     # ---------- XP System ----------
     async def add_xp(self, guild_id, user_id, xp_to_add):

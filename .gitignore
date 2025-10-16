@@ -10,3 +10,5 @@ __pycache__/
 
 # Database files
 *.db
+dashboard/dist/
+dashboard/node_modules/

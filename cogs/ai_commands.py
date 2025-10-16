@@ -16,12 +16,24 @@ class DeleteChannelView(ui.View):
         if not interaction.user.guild_permissions.manage_channels:
             await interaction.response.send_message("❌ You need 'Manage Channels' permission to do this.", ephemeral=True)
             return
-        await interaction.response.send_message(f"✅ Deleting channel `{interaction.channel.name}` in 5 seconds...", ephemeral=True)
+        
+        # Defer to prevent "interaction failed"
+        await interaction.response.defer(ephemeral=True)
+        
+        await interaction.followup.send(f"✅ Deleting channel `{interaction.channel.name}` in 5 seconds...", ephemeral=True)
         await asyncio.sleep(5)
         try:
             await interaction.channel.delete(reason="Crux AI setup complete.")
         except discord.NotFound:
             pass
+        except discord.HTTPException as e:
+            print(f"Failed to delete channel: {e}")
+            # Try to inform the user in the channel if followup fails, though it might be deleted.
+            try:
+                await interaction.channel.send("Could not delete this channel. Please check my permissions.", delete_after=10)
+            except:
+                pass
+
 
 class ConfirmBuildView(ui.View):
     def __init__(self, interaction: discord.Interaction, setup_plan: dict, cog, reset: bool):
@@ -30,11 +42,13 @@ class ConfirmBuildView(ui.View):
         self.setup_plan = setup_plan
         self.cog = cog
         self.reset = reset
+
     async def on_timeout(self):
         for item in self.children: item.disabled = True
         try:
             await self.interaction.edit_original_response(content="⌛ Timed out. The build has been cancelled.", view=self)
         except discord.NotFound: pass
+
     @ui.button(label="Confirm & Build", style=discord.ButtonStyle.success)
     async def confirm_button(self, interaction: discord.Interaction, button: ui.Button):
         await interaction.response.defer()
@@ -43,8 +57,11 @@ class ConfirmBuildView(ui.View):
         if self.reset:
             original_content += "\n**Server reset in progress. This may take a moment...**"
         await self.interaction.edit_original_response(content=original_content, view=self)
-        await self.cog._execute_build_plan(self.interaction, self.setup_plan, self.reset)
+        
+        # We use the interaction channel for feedback from a slash command
+        await self.cog._execute_build_plan(interaction.guild, interaction.channel, self.setup_plan, self.reset)
         self.stop()
+
     @ui.button(label="Cancel", style=discord.ButtonStyle.danger)
     async def cancel_button(self, interaction: discord.Interaction, button: ui.Button):
         await interaction.response.defer()
@@ -79,15 +96,16 @@ class AICommands(commands.Cog):
         channel_id = message.channel.id
         if channel_id not in self.bot.chats:
             self.bot.chats[channel_id] = model.start_chat(history=[{"role": "user", "parts": ["You are a friendly and helpful Discord bot named Cruxy developed by Team ModVerse..."]}])
-        await message.channel.send("Thinking...", reference=message)
-        try:
-            chat = self.bot.chats[channel_id]
-            await self._manage_history(chat)
-            response = await chat.send_message_async(prompt)
-            await message.channel.send(response.text, reference=message)
-        except Exception as e:
-            print(f"An error occurred with the AI chat: {e}")
-            await message.channel.send("Sorry, I'm having trouble with the AI service right now.", reference=message)
+        
+        async with message.channel.typing():
+            try:
+                chat = self.bot.chats[channel_id]
+                await self._manage_history(chat)
+                response = await chat.send_message_async(prompt)
+                await message.channel.send(response.text, reference=message)
+            except Exception as e:
+                print(f"An error occurred with the AI chat: {e}")
+                await message.channel.send("Sorry, I'm having trouble with the AI service right now.", reference=message)
 
     def _format_plan_embed(self, theme: str, setup_plan: dict) -> discord.Embed:
         initial_description = f"Here is the plan my AI generated for the theme: **'{theme}'**.\nPlease review the changes below and confirm to proceed."
@@ -120,23 +138,34 @@ class AICommands(commands.Cog):
         embed.set_footer(text="The build will be cancelled automatically in 3 minutes if you don't respond.")
         return embed
 
-    async def _execute_build_plan(self, interaction: discord.Interaction, setup_plan: dict, reset: bool):
-        guild = interaction.guild
+    async def _execute_build_plan(self, guild: discord.Guild, feedback_channel: discord.TextChannel, setup_plan: dict, reset: bool):
+        if not feedback_channel:
+            return # Cannot proceed without a channel to send updates to
+
         if reset:
-            await interaction.followup.send("**Step 1/3:** Wiping existing server structure...", ephemeral=True)
+            await feedback_channel.send("**Step 1/3:** Wiping existing server structure...")
+            # Delete channels first
             for channel in guild.channels:
-                if channel != interaction.channel:
-                    try: await channel.delete(reason="Crux AI server reset")
-                    except Exception as e: print(f"Failed to delete channel {channel.name}: {e}")
+                # Don't delete the channel we are sending messages in
+                if channel.id != feedback_channel.id:
+                    try:
+                        await channel.delete(reason="Crux AI server reset")
+                    except Exception as e:
+                        print(f"Failed to delete channel {channel.name}: {e}")
+            
+            # Then delete roles
             for role in guild.roles:
                 if role.name != "@everyone" and not role.managed and role < guild.me.top_role:
-                    try: await role.delete(reason="Crux AI server reset")
-                    except Exception as e: print(f"Failed to delete role {role.name}: {e}")
+                    try:
+                        await role.delete(reason="Crux AI server reset")
+                    except Exception as e:
+                        print(f"Failed to delete role {role.name}: {e}")
             await asyncio.sleep(2)
+
         created_roles, created_categories = {}, {}
         try:
             role_step = "Step 2/3" if reset else "Step 1/2"
-            await interaction.followup.send(f"**{role_step}:** Creating roles...", ephemeral=True)
+            await feedback_channel.send(f"**{role_step}:** Creating roles...")
             role_names_to_create = setup_plan.get('roles', [])
             if role_names_to_create:
                 for role_name in role_names_to_create:
@@ -144,8 +173,10 @@ class AICommands(commands.Cog):
                         created_roles[role_name] = existing_role
                     else:
                         created_roles[role_name] = await guild.create_role(name=role_name, reason="AI Server Build")
+            
             channel_step = "Step 3/3" if reset else "Step 2/2"
-            await interaction.followup.send(f"**{channel_step}:** Creating categories and channels...", ephemeral=True)
+            await feedback_channel.send(f"**{channel_step}:** Creating categories and channels...")
+            
             for task in setup_plan.get('plan', []):
                 task_name, name = task.get('task'), task.get('name')
                 if task_name == "create_category":
@@ -162,6 +193,7 @@ class AICommands(commands.Cog):
                         for role_name in perms_type.get('allow', []):
                             if role_obj := created_roles.get(role_name):
                                 overwrites[role_obj] = discord.PermissionOverwrite(view_channel=True)
+                    
                     channel_type = task.get('channel_type', 'text')
                     if channel_type == 'voice':
                         await guild.create_voice_channel(name, category=category, overwrites=overwrites, reason="Crux AI Server Build")
@@ -170,20 +202,58 @@ class AICommands(commands.Cog):
                         initial_message = task.get('message')
                         new_channel = await guild.create_text_channel(name, category=category, overwrites=overwrites, topic=channel_topic, reason="Crux AI Server Build")
                         if initial_message:
-                            try: await new_channel.send(initial_message)
-                            except discord.Forbidden: pass
-            await interaction.followup.send("✅ **Server setup complete!**", ephemeral=True)
-            await interaction.channel.send("Build complete! You can now delete this setup channel.", view=DeleteChannelView())
+                            try:
+                                await new_channel.send(initial_message)
+                            except discord.Forbidden:
+                                pass
+                                
+            await feedback_channel.send("✅ **Server setup complete!**")
+            if reset:
+                 await feedback_channel.send("Build complete! You can now delete this setup channel.", view=DeleteChannelView())
+
         except Exception as e:
-            await interaction.followup.send(f"An unexpected error occurred during build: {e}", ephemeral=True)
+            await feedback_channel.send(f"An unexpected error occurred during build: {e}")
 
-    @app_commands.command(name="buildserver", description="Build a server structure based on a theme using AI.")
-    @app_commands.describe(theme="The theme for the server (e.g., 'A high-tech startup')", reset_server="WARNING: Deletes all existing channels and roles before building.")
-    @app_commands.checks.has_permissions(administrator=True)
-    async def build_server_command(self, interaction: discord.Interaction, theme: str, reset_server: bool = False):
-        await interaction.response.defer(ephemeral=True, thinking=True)
+    async def handle_api_build_request(self, guild: discord.Guild, theme: str, reset_server: bool):
+        # For API requests, find a suitable channel to send feedback to.
+        # Pick the first channel the bot can write in.
+        feedback_channel = None
+        for channel in guild.text_channels:
+            if channel.permissions_for(guild.me).send_messages:
+                feedback_channel = channel
+                break
+        
+        if not feedback_channel:
+            return {'error': 'Bot could not find a channel to send messages in.'}
 
-        setup_prompt = f"""
+        await feedback_channel.send(f"🤖 Received `/buildserver` request from the web dashboard for theme: **'{theme}'**")
+
+        setup_prompt = self._get_setup_prompt(theme)
+        
+        try:
+            response = await model.generate_content_async(setup_prompt)
+            # ... (rest of the AI plan generation is the same)
+            ai_response_text = response.text
+            json_match = re.search(r"\{.*\}", ai_response_text, re.DOTALL)
+            if not json_match:
+                await feedback_channel.send("❌ The AI's response was not in the correct format.")
+                return {'error': "AI response was not valid JSON."}
+
+            setup_plan = json.loads(json_match.group(0))
+            if not setup_plan or not setup_plan.get('plan'):
+                 await feedback_channel.send("❌ The AI chose not to generate a server plan for that theme.")
+                 return {'error': "AI did not generate a plan."}
+
+            await self._execute_build_plan(guild, feedback_channel, setup_plan, reset_server)
+            return {'message': 'Build process started successfully! Check your Discord server for updates.'}
+
+        except Exception as e:
+            print(f"An unexpected error occurred in API build request: {e}")
+            await feedback_channel.send(f"An unexpected error occurred: {e}")
+            return {'error': str(e)}
+
+    def _get_setup_prompt(self, theme: str) -> str:
+        return f"""
 You are a machine that generates a JSON object for building a Discord server. Your response MUST be a single, raw, valid JSON object and nothing else. Do not include any commentary, explanations, or markdown formatting.
 
 **USER REQUEST:** "Build a server for {theme}"
@@ -203,37 +273,21 @@ You are a machine that generates a JSON object for building a Discord server. Yo
   - `category`: `String`. (Required for "create_channel") The `name` of a previously defined "create_category" task.
   - `channel_type`: `String`. (Required for "create_channel") Must be "text" or "voice".
   - `permissions`: `String` ("public" or "read-only") OR `Object` (`{{"type": "restricted", "allow": Array<String>}}`).
-  - `topic`: `String`. (Required ONLY for `channel_type: "text"`) A short description. `voice` channels MUST NOT have this key.
-  - `message`: `String`. (Required ONLY for `channel_type: "text"`) A welcome message. `voice` channels MUST NOT have this key.
+  - `topic`: `String`. (Optional, for `channel_type: "text"`) A short description. `voice` channels MUST NOT have this key.
+  - `message`: `String`. (Optional, for `channel_type: "text"`) A welcome message. `voice` channels MUST NOT have this key.
 
 **VALIDATION:** Before generating your final response, mentally validate your output against all rules and the schema above.
 
-**EXAMPLE:**
-{{
-    "roles": ["Team Captain", "Player"],
-    "plan": [
-        {{ "task": "create_category", "name": "team-hq" }},
-        {{
-            "task": "create_channel",
-            "name": "announcements",
-            "category": "team-hq",
-            "channel_type": "text",
-            "permissions": "read-only",
-            "topic": "Important team announcements.",
-            "message": "Welcome to the official team announcements!"
-        }},
-        {{
-            "task": "create_channel",
-            "name": "strategy-room",
-            "category": "team-hq",
-            "channel_type": "voice",
-            "permissions": {{ "type": "restricted", "allow": ["Team Captain"] }}
-        }}
-    ]
-}}
-
 Generate the JSON object now.
 """
+
+    @app_commands.command(name="buildserver", description="Build a server structure based on a theme using AI.")
+    @app_commands.describe(theme="The theme for the server (e.g., 'A high-tech startup')", reset_server="WARNING: Deletes all existing channels and roles before building.")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def build_server_command(self, interaction: discord.Interaction, theme: str, reset_server: bool = False):
+        await interaction.response.defer(ephemeral=True, thinking=True)
+
+        setup_prompt = self._get_setup_prompt(theme)
         try:
             response = await model.generate_content_async(setup_prompt)
             if not response.parts:
