@@ -1,3 +1,12 @@
 .env
-warnings.db
-bot_data.db
+# Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environment
+.venv/
+
+# Database files
+*.db
