@@ -1,189 +1,131 @@
 # Cruxy – The AI Powered Discord Community Manager
 
-[Python Downloads](https://www.python.org/downloads/)
-[discord.py](https://github.com/Rapptz/discord.py)
+[Python Downloads](https://www.python.org/downloads/) | [Node.js Downloads](https://nodejs.org/) | [discord.py](https://github.com/Rapptz/discord.py)
 
-Cruxy is an intelligent, multi-functional Discord bot that combines automation and artificial intelligence to handle community management, moderation, and engagement tasks. It transforms natural language instructions into fully structured Discord setups, making server management faster, smarter, and simpler.
+Cruxy is an intelligent, multi-functional Discord bot that combines automation and artificial intelligence to handle community management, moderation, and engagement. It transforms natural language instructions into fully structured Discord setups and is now manageable from a sleek web dashboard.
 
----
+-----
 
 ## About the Project
 
-Managing a Discord server often involves repetitive tasks like creating roles, channels, and assigning permissions. Cruxy automates all of this. With simple slash commands, it designs, configures, and moderates your community server intelligently.
+Managing a Discord server often involves repetitive tasks like creating roles and channels. Cruxy automates this with simple slash commands and now offers a React-based web dashboard for even easier control. It's built for server owners who want to focus on growing their communities rather than handling manual configurations.
 
-Cruxy is built for server owners who want to focus on growing their communities rather than handling manual configurations.
-
----
+-----
 
 ## Key Features
 
-* **AI-Powered Server Builder**
-  The `/buildserver` command generates complete Discord servers based on your input theme:
+  * **AI-Powered Server Builder**
+    The `/buildserver` command generates complete Discord servers based on your input theme.
 
-  * Creates relevant roles and permissions
-  * Builds categories and channels logically
-  * Provides a preview before applying changes
+  * **Conversational AI**
+    Mention `@Cruxy` to start context-aware conversations powered by Google Gemini.
 
-* **Conversational AI**
-  Mention `@Cruxy` to start context-aware conversations powered by Google Gemini (Generative AI).
+  * **Web Dashboard**
+    A modern, responsive React dashboard to manage your bot's settings from your browser.
 
-* **Advanced Automated Moderation**
+      * Select which server you want to manage.
+      * Use the AI Manager to build or edit your server with natural language.
+      * Configure AutoMod settings like profanity filters and warning limits in real-time.
 
-  * Detects and deletes profanity using `better-profanity`
-  * Issues warnings, with customizable warning limits
-  * Provides multiple punishment options: **mute (with configurable duration)**, **kick**, or **ban**
-  * Commands to check warnings or reset them (`!warnings`, `!resetwarnings`)
+  * **Advanced Automated Moderation**
 
-* **Event Scheduling**
-  `/event` allows you to organize events and automatically notify users before start time.
+      * Detects and warns for profanity.
+      * Customizable warning limits and punishments (mute, kick, or ban).
 
-* **Leveling System**
-  Users earn XP for participation, level up over time, and retain progress via persistent storage.
+  * **Event Scheduling & Leveling System**
+    Organize events with `/event` and reward user participation with an XP and leveling system.
 
-* **Admin Tools**
-  Commands for managing warnings, resetting data, setting AFK status, syncing commands, and more.
-
----
+-----
 
 ## Built With
 
-* **Python 3.10+**
-* **discord.py** – Discord API integration
-* **google-generativeai** – Gemini model for AI interactions
-* **aiosqlite** – Asynchronous SQLite operations
-* **python-dotenv** – Environment variable management
-* **better-profanity** – Profanity filtering
-* **asyncio, json, datetime, random** – Core Python modules
+  * **Python 3.10+**
+  * **discord.py** – For Discord Bot integration.
+  * **Flask** – Powers the backend API server.
+  * **React** – For the frontend web dashboard.
+  * **Tailwind CSS** – For styling the dashboard.
+  * **google-generativeai** – For all AI functionalities.
+  * **aiosqlite** – For asynchronous database operations.
 
----
+-----
 
-## Prerequisites
+## Prerequisites & Installation
 
-### 1. Python
+### 1\. System Requirements
 
-Install Python 3.10 or higher:
+  * Install **Python 3.10 or higher**.
+  * Install **Node.js LTS** (which includes npm).
 
-```bash
-python --version
-```
+### 2\. Discord & API Keys
 
-### 2. Discord Application
+  * Create a **Discord Bot Application** in the [Discord Developer Portal](https://discord.com/developers/applications) and enable the `SERVER MEMBERS`, `MESSAGE CONTENT`, and `PRESENCE` intents. Copy your bot token.
+  * Obtain a **Gemini API Key** from [Google AI Studio](https://aistudio.google.com/app/apikey).
 
-* Create a new application in the [Discord Developer Portal](https://discord.com/developers/applications).
-* Under **Bot Settings**, enable:
+### 3\. Environment Variables
 
-  * **SERVER MEMBERS INTENT**
-  * **MESSAGE CONTENT INTENT**
-* Copy your **bot token**.
-
-### 3. Google AI Studio API Key
-
-Obtain a Gemini API key from [Google AI Studio](https://aistudio.google.com/app/apikey).
-
-### 4. Environment Variables
-
-Create a `.env` file in the project root:
+Create a `.env` file in the project root (`D:\AI Porject\DC bot`):
 
 ```env
 DISCORD_TOKEN=your_discord_bot_token
 GEMINI_API_KEY=your_gemini_api_key
 ```
 
-### 5. Install Dependencies
+### 4\. Install Dependencies
 
-```bash
-pip install discord.py google-generativeai aiosqlite python-dotenv better-profanity thefuzz
-```
+  * **Backend (Python):** Open a terminal in the project root and run:
 
-Or via `requirements.txt`:
+    ```bash
+    pip install -r requirements.txt
+    ```
 
-```bash
-pip install -r requirements.txt
-```
+  * **Frontend (Node.js):** Navigate into the `dashboard` directory and run:
 
----
+    ```bash
+    cd dashboard
+    npm install
+    ```
 
-## Installation
+-----
 
-1. **Clone the Repository**
+## Running the Project
 
-```bash
-git clone https://github.com/rigvedbhat/Cruxy---ModVerse.git
-cd Cruxy---ModVerse
-```
+You'll need to run the backend and frontend in two separate terminals.
 
-2. **Configure Environment Variables**
-   Ensure your `.env` file contains valid tokens and keys.
-
-3. **Run the Bot**
+**Terminal 1: Start the Backend**
+Make sure you are in the project's root directory (`D:\AI Porject\DC bot`) and your virtual environment is active.
 
 ```bash
 python bot.py
 ```
 
-You should see a console message indicating successful connection and cog loading.
+This command starts both the Discord bot and the API server on `http://127.0.0.1:5000`.
 
----
+**Terminal 2: Start the Frontend Dashboard**
+Open a new terminal and navigate to the `dashboard` directory.
+
+```bash
+cd dashboard
+npm run dev
+```
+
+Your web dashboard will now be running at **http://localhost:5173**. Open this address in your web browser to use it.
+
+-----
 
 ## Usage
 
-Cruxy uses Discord’s slash commands. Examples:
+  * **Discord Commands:** Use slash commands like `/buildserver`, `/serveredit`, and `/event` directly in Discord.
+  * **Web Dashboard:** Open `http://localhost:5173` in your browser. Select a server and manage its settings through the user-friendly interface.
 
-* **Build a server**
-
-```
-/buildserver theme: A futuristic tech startup server
-```
-
-* **Chat with the AI**
-
-```
-@Cruxy What are the best community engagement ideas?
-```
-
-* **Schedule an event**
-
-```
-/event name: Team Meeting date: 2025-10-15 time: 18:00 description: Weekly progress check
-```
-
-* **Check level**
-
-```
-/level
-```
-
-* **Sync commands manually (Owner only)**
-
-```
-!sync
-```
-
-* **Moderation commands**
-
-```
-!warnings @user   # Check warnings
-!resetwarnings @user   # Reset warnings
-```
-
----
-
-## Roadmap
-
-* Natural language server modification
-* Web dashboard for multi-server management
-* Cross-platform community management (Slack, Telegram)
-* Public server template library
-
----
+-----
 
 ## Troubleshooting
 
-* **Bot not responding:** Ensure intents are enabled in the Discord Developer Portal.
-* **Gemini AI not working:** Verify `GEMINI_API_KEY` in `.env`.
-* **Permission issues:** Check if the bot has Administrator privileges or required permissions in server settings.
+  * **Bot not responding in Discord:** Ensure all required intents are enabled in the Discord Developer Portal.
+  * **Dashboard shows a connection error:** Make sure the backend (`python bot.py`) is running before you start the frontend.
+  * **`ModuleNotFoundError` in Python:** Ensure you have installed all packages from `requirements.txt`.
 
----
+-----
 
 ## Contact
 
@@ -191,8 +133,8 @@ Cruxy uses Discord’s slash commands. Examples:
 **Email:** [rigvedmb2@gmail.com](mailto:rigvedmb2@gmail.com)
 **Bot Invite:** [Invite Cruxy](https://discord.com/oauth2/authorize?client_id=1361039241760604261&permissions=8&integration_type=0&scope=bot)
 
----
+-----
 
 ## License
 
-This project is licensed under the GNU General Public License v3.0. See the LICENSE file in the repository for full license details.
+This project is licensed under the GNU General Public License v3.0. See the `LICENSE` file for details.
