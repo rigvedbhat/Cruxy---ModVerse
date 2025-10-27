@@ -18,8 +18,7 @@ class General(commands.Cog):
         await self.db.close()
         print("General cog disconnected from the database.")
     
-    @commands.Cog.listener()
-    async def on_message(self, message: discord.Message):
+    async def handle_afk_and_xp(self, message: discord.Message):
         if message.author.bot or not message.guild:
             return
         
@@ -40,9 +39,6 @@ class General(commands.Cog):
         new_level = await self.db.add_xp(guild_id, user_id, random.randint(5, 15))
         if new_level is not None:
             await message.channel.send(f"🎉 Congrats {message.author.mention}, you leveled up to **Level {new_level}**!")
-        
-        # THIS IS THE FIX: Allow other on_message events to run
-        await self.bot.process_commands(message)
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):

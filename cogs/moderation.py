@@ -21,21 +21,28 @@ class Moderation(commands.Cog):
         await self.db.close()
         print("Moderation cog disconnected from the database.")
 
-    @commands.Cog.listener()
-    async def on_message(self, message: discord.Message):
-        """Handles profanity detection and applies moderation actions."""
-        # Skip bots, DMs, and admins
-        if message.author.bot or not message.guild or message.author.guild_permissions.administrator:
-            return
+    async def check_message_for_profanity(self, message: discord.Message) -> bool:
+        """
+        Handles profanity detection and applies moderation actions.
+        Returns True if profanity was found and handled, False otherwise.
+        """
+        print(f"\n[DEBUG] Running profanity check for user: {message.author.name}")
+
+        if message.author.guild_permissions.administrator:
+            print("[DEBUG] User is an administrator. Skipping profanity check.")
+            return False
 
         settings = await self.db.get_automod_settings(message.guild.id)
+        print(f"[DEBUG] Fetched AutoMod settings: {settings}")
         
-        # Check if profanity filter is enabled
         if not settings.get("profanityFilter", False):
-            return
+            print("[DEBUG] Profanity filter is disabled in settings. Skipping check.")
+            return False
 
-        # Check for profanity
-        if profanity.contains_profanity(message.content):
+        contains_profanity = profanity.contains_profanity(message.content)
+        print(f"[DEBUG] `better_profanity` check returned: {contains_profanity}")
+
+        if contains_profanity:
             try:
                 await message.delete()
             except (discord.Forbidden, discord.NotFound):
@@ -44,34 +51,36 @@ class Moderation(commands.Cog):
             guild_id = message.guild.id
             user_id = message.author.id
             
-            # Add warning and get new count
             new_warnings = await self.db.add_warning(guild_id, user_id)
             warning_limit = settings.get("warningLimit", 3)
             punishment_type = settings.get("limitAction", "kick").lower()
 
             await message.channel.send(
                 f"⚠️ {message.author.mention}, watch your language! "
-                f"You now have **{new_warnings}/{warning_limit}** warnings."
-            , delete_after=15)
+                f"You now have **{new_warnings}/{warning_limit}** warnings.",
+                delete_after=15
+            )
 
-            # Apply punishment if limit reached
             if new_warnings >= warning_limit:
                 try:
                     if punishment_type == "kick":
                         await message.author.kick(reason="Exceeded profanity warning limit")
                         await message.channel.send(f"👢 {message.author.mention} has been kicked for repeated profanity.")
-                    
                     elif punishment_type == "ban":
                         await message.guild.ban(message.author, reason="Exceeded profanity warning limit")
                         await message.channel.send(f"🔨 {message.author.mention} has been banned for repeated profanity.")
-
-                    # Only reset warnings AFTER a successful punishment
+                    
                     await self.db.reset_warnings(guild_id, user_id)
-
                 except discord.Forbidden:
-                    await message.channel.send(f"❌ **Permissions Error:** I tried to punish {message.author.mention} but I don't have the required permissions. Please check my role hierarchy and permissions.")
+                    await message.channel.send(f"❌ **Permissions Error:** I tried to punish {message.author.mention} but I don't have the required permissions.")
                 except Exception as e:
                     await message.channel.send(f"An error occurred while applying punishment: {e}")
+            
+            print("[DEBUG] Profanity was handled.")
+            return True # Profanity was handled
+        
+        print("[DEBUG] No profanity found.")
+        return False # No profanity found
 
     # ---------- Text Commands for manual moderation ----------
     @commands.command(name="warnings")

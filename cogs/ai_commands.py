@@ -8,6 +8,7 @@ import re
 
 model = genai.GenerativeModel('gemini-2.5-flash')
 
+# ... (Keep DeleteChannelView and ConfirmBuildView the same) ...
 class DeleteChannelView(ui.View):
     def __init__(self):
         super().__init__(timeout=None)
@@ -72,20 +73,17 @@ class AICommands(commands.Cog):
             chat_session.history = [chat_session.history[0]] + chat_session.history[-(self.max_messages_to_keep):]
             print(f"Pruned chat history to {len(chat_session.history) - 1} messages.")
 
-    @commands.Cog.listener()
-    async def on_message(self, message: discord.Message):
-        if message.author.bot or not message.guild:
-            return
-            
+    async def handle_bot_mention(self, message: discord.Message) -> bool:
         if self.bot.user in message.mentions:
             cleaned_message = message.content.replace(f'<@{self.bot.user.id}>', '').strip()
             if not cleaned_message:
                 await message.channel.send("Hello there! How can I help you today?", reference=message)
-                return
+                return True # It was a mention, so we handled it
+
             await self.handle_chat_request(message, cleaned_message)
+            return True # It was a mention, so we handled it
         
-        # THIS IS THE FIX: Allow other on_message events to run
-        await self.bot.process_commands(message)
+        return False # It was not a mention
 
     async def handle_chat_request(self, message: discord.Message, prompt: str):
         channel_id = message.channel.id
@@ -102,6 +100,7 @@ class AICommands(commands.Cog):
                 print(f"An error occurred with the AI chat: {e}")
                 await message.channel.send("Sorry, I'm having trouble with the AI service right now.", reference=message)
 
+    # ... (Keep the rest of the AICommands cog the same: _format_plan_embed, _execute_build_plan, etc.) ...
     def _format_plan_embed(self, theme: str, setup_plan: dict) -> discord.Embed:
         initial_description = f"Here is the plan my AI generated for the theme: **'{theme}'**.\nPlease review the changes below and confirm to proceed."
         embed = discord.Embed(title="Server Build Plan Preview", description=initial_description, color=discord.Color.blue())
