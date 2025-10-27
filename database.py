@@ -17,8 +17,7 @@ class PersistentDB:
                 guild_id INTEGER PRIMARY KEY,
                 profanity_filter_enabled BOOLEAN DEFAULT 1,
                 warning_limit INTEGER DEFAULT 3,
-                punishment_type TEXT DEFAULT 'kick',
-                mute_duration INTEGER DEFAULT 10
+                punishment_type TEXT DEFAULT 'kick'
             )
         ''')
 
@@ -103,7 +102,7 @@ class PersistentDB:
     # ---------- AutoMod Settings (Updated) ----------
     async def get_automod_settings(self, guild_id):
         async with self.conn.execute(
-            "SELECT profanity_filter_enabled, warning_limit, punishment_type, mute_duration FROM automod_settings WHERE guild_id=?",
+            "SELECT profanity_filter_enabled, warning_limit, punishment_type FROM automod_settings WHERE guild_id=?",
             (guild_id,)
         ) as cursor:
             row = await cursor.fetchone()
@@ -112,20 +111,18 @@ class PersistentDB:
                     "profanityFilter": bool(row[0]),
                     "warningLimit": row[1],
                     "limitAction": row[2],
-                    "muteDuration": row[3]
                 }
         # Return default settings if none are found
         return {
             "profanityFilter": True,
             "warningLimit": 3,
             "limitAction": 'kick',
-            "muteDuration": 10
         }
 
-    async def set_automod_settings(self, guild_id, profanity_filter, limit, punishment, mute_duration):
+    async def set_automod_settings(self, guild_id, profanity_filter, limit, punishment):
         await self.conn.execute(
-            "INSERT OR REPLACE INTO automod_settings (guild_id, profanity_filter_enabled, warning_limit, punishment_type, mute_duration) VALUES (?, ?, ?, ?, ?)",
-            (guild_id, profanity_filter, limit, punishment, mute_duration)
+            "INSERT OR REPLACE INTO automod_settings (guild_id, profanity_filter_enabled, warning_limit, punishment_type) VALUES (?, ?, ?, ?)",
+            (guild_id, profanity_filter, limit, punishment)
         )
         await self.conn.commit()
 

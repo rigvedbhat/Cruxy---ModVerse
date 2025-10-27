@@ -4,7 +4,6 @@ from discord import app_commands
 from database import PersistentDB
 from better_profanity import profanity
 import asyncio
-from datetime import timedelta
 
 class Moderation(commands.Cog):
     def __init__(self, bot: commands.Bot):
@@ -25,55 +24,52 @@ class Moderation(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         """Handles profanity detection and applies moderation actions."""
-        if message.author.bot or not message.guild:
+        # Skip bots, DMs, and admins
+        if message.author.bot or not message.guild or message.author.guild_permissions.administrator:
             return
 
-        # Fetch server-specific settings from the central database
         settings = await self.db.get_automod_settings(message.guild.id)
         
-        # Only proceed if the profanity filter is enabled for this server
+        # Check if profanity filter is enabled
         if not settings.get("profanityFilter", False):
             return
 
+        # Check for profanity
         if profanity.contains_profanity(message.content):
             try:
                 await message.delete()
-            except discord.Forbidden:
-                print(f"Could not delete profane message in {message.guild.name} - Missing Permissions.")
-            except discord.NotFound:
-                pass # Message was deleted by someone else
+            except (discord.Forbidden, discord.NotFound):
+                pass 
 
             guild_id = message.guild.id
             user_id = message.author.id
-
-            # Add a warning and get the new total
+            
+            # Add warning and get new count
             new_warnings = await self.db.add_warning(guild_id, user_id)
             warning_limit = settings.get("warningLimit", 3)
-            punishment_type = settings.get("limitAction", "kick")
-            mute_duration = settings.get("muteDuration", 10)
+            punishment_type = settings.get("limitAction", "kick").lower()
 
             await message.channel.send(
                 f"⚠️ {message.author.mention}, watch your language! "
                 f"You now have **{new_warnings}/{warning_limit}** warnings."
             , delete_after=15)
 
+            # Apply punishment if limit reached
             if new_warnings >= warning_limit:
                 try:
-                    if punishment_type == "mute":
-                        duration = timedelta(minutes=mute_duration)
-                        await message.author.timeout(duration, reason="Exceeded profanity warning limit")
-                        await message.channel.send(f"🔇 {message.author.mention} has been muted for **{mute_duration} minutes**.")
-                    elif punishment_type == "kick":
+                    if punishment_type == "kick":
                         await message.author.kick(reason="Exceeded profanity warning limit")
                         await message.channel.send(f"👢 {message.author.mention} has been kicked for repeated profanity.")
+                    
                     elif punishment_type == "ban":
                         await message.guild.ban(message.author, reason="Exceeded profanity warning limit")
                         await message.channel.send(f"🔨 {message.author.mention} has been banned for repeated profanity.")
 
-                    # Reset warnings after punishment
+                    # Only reset warnings AFTER a successful punishment
                     await self.db.reset_warnings(guild_id, user_id)
+
                 except discord.Forbidden:
-                    await message.channel.send(f"❌ **Permissions Error:** I tried to punish {message.author.mention} but I don't have the required permissions.")
+                    await message.channel.send(f"❌ **Permissions Error:** I tried to punish {message.author.mention} but I don't have the required permissions. Please check my role hierarchy and permissions.")
                 except Exception as e:
                     await message.channel.send(f"An error occurred while applying punishment: {e}")
 

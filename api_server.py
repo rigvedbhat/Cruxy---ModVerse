@@ -31,6 +31,21 @@ def run_api_server(bot):
         } for guild in app.bot.guilds]
         return jsonify(guilds_list)
 
+    @app.route('/api/guilds/<int:guild_id>/info', methods=['GET'])
+    def get_guild_info(guild_id):
+        guild = app.bot.get_guild(guild_id)
+        if not guild:
+            return jsonify({'error': 'Guild not found'}), 404
+
+        info = {
+            'member_count': guild.member_count,
+            'premium_tier': guild.premium_tier,
+            'premium_subscription_count': guild.premium_subscription_count,
+            'channels': len(guild.text_channels) + len(guild.voice_channels),
+            'roles': len(guild.roles),
+        }
+        return jsonify(info)
+
     @app.route('/api/automod_settings/<int:guild_id>', methods=['GET', 'POST'])
     async def automod_settings(guild_id):
         db = g.db
@@ -40,8 +55,7 @@ def run_api_server(bot):
                 guild_id,
                 data.get('profanityFilter'),
                 data.get('warningLimit'),
-                data.get('limitAction'),
-                data.get('muteDuration')
+                data.get('limitAction')
             )
             return jsonify({'message': 'Settings updated successfully'})
         else:
@@ -49,7 +63,7 @@ def run_api_server(bot):
             return jsonify(settings)
 
     @app.route('/api/buildserver', methods=['POST'])
-    async def build_server():
+    def build_server():
         data = request.json
         guild_id = data.get('guildId')
         prompt = data.get('prompt')
@@ -63,14 +77,16 @@ def run_api_server(bot):
         if not ai_cog:
             return jsonify({'error': 'AICommands cog not loaded'}), 500
 
-        result = await asyncio.wrap_future(asyncio.run_coroutine_threadsafe(
-            ai_cog.handle_api_build_request(guild, prompt, reset_server), app.bot.loop
-        ))
+        # Schedule the coroutine to run on the bot's event loop
+        asyncio.run_coroutine_threadsafe(
+            ai_cog.handle_api_build_request(guild, prompt, reset_server),
+            app.bot.loop
+        )
         
-        return jsonify(result)
+        return jsonify({'message': 'Build command sent successfully!'})
         
     @app.route('/api/serveredit', methods=['POST'])
-    async def server_edit():
+    def server_edit():
         data = request.json
         guild_id = data.get('guildId')
         prompt = data.get('prompt')
@@ -83,11 +99,20 @@ def run_api_server(bot):
         if not edit_cog:
             return jsonify({'error': 'AIEditCommands cog not loaded'}), 500
         
-        result = await asyncio.wrap_future(asyncio.run_coroutine_threadsafe(
-            edit_cog.handle_api_edit_request(guild, prompt), app.bot.loop
-        ))
+        # Find a channel to post the results to
+        feedback_channel = None
+        for channel in guild.text_channels:
+            if channel.permissions_for(guild.me).send_messages:
+                feedback_channel = channel
+                break
         
-        return jsonify(result)
+        if not feedback_channel:
+            return jsonify({'error': 'No channel found to send feedback'}), 500
 
-    # Note: We don't call app.run() here anymore. The bot.py file will handle it.
-
+        # Schedule the coroutine to run on the bot's event loop
+        asyncio.run_coroutine_threadsafe(
+            edit_cog.handle_api_edit_request(guild, feedback_channel, prompt),
+            app.bot.loop
+        )
+        
+        return jsonify({'message': 'Server edit command sent successfully!'})

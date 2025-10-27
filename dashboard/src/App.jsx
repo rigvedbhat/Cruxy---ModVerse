@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { ShieldCheck, Bot, Swords, Users, Settings, HelpCircle, Send, MessageSquare, BookOpen, ChevronDown, ChevronUp, Loader2, Home, LayoutDashboard, Menu, X, CheckCircle, AlertTriangle, Info, LogOut } from 'lucide-react';
+import { ShieldCheck, Bot, Swords, Users, Settings, HelpCircle, Send, MessageSquare, BookOpen, ChevronDown, ChevronUp, Loader2, Home, LayoutDashboard, Menu, X, CheckCircle, AlertTriangle, Info, LogOut, RefreshCw } from 'lucide-react';
 
 const API_URL = 'http://127.0.0.1:5000';
 
@@ -130,28 +130,67 @@ const GuildSelector = ({ guilds, onSelectGuild, isLoading }) => (
     </div>
 );
 
-const OverviewView = () => (
-    <div className="animate-fade-in">
-        <h2 className="text-3xl font-bold text-white mb-8">Overview</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
-            {[{ title: 'Total Members', value: '1,234' }, { title: 'Members Online', value: '456' }, { title: 'Mod Actions (24h)', value: '78' }, { title: 'Levels Awarded (24h)', value: '90' }]
-                .map(stat => (
-                    <div key={stat.title} className="bg-gray-800/60 p-6 rounded-2xl border border-cyan-400/20">
-                        <p className="text-gray-400 text-sm mb-2">{stat.title}</p>
-                        <p className="text-3xl font-bold text-white">{stat.value}</p>
-                    </div>
-                ))}
+const OverviewView = ({ selectedGuild, showToast }) => {
+    const [stats, setStats] = useState({
+        member_count: 0,
+        premium_tier: 0,
+        premium_subscription_count: 0,
+        channels: 0,
+        roles: 0,
+    });
+    const [isLoading, setIsLoading] = useState(true);
+
+    const fetchStats = useCallback(async () => {
+        setIsLoading(true);
+        try {
+            const response = await fetch(`${API_URL}/api/guilds/${selectedGuild.id}/info`);
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Failed to fetch server info.');
+            setStats(data);
+        } catch (error) {
+            showToast(error.message, 'error');
+        } finally {
+            setIsLoading(false);
+        }
+    }, [selectedGuild, showToast]);
+
+    useEffect(() => {
+        fetchStats();
+        const interval = setInterval(fetchStats, 60000); // Auto-refresh every 60 seconds
+        return () => clearInterval(interval);
+    }, [fetchStats]);
+
+    const statCards = [
+        { title: 'Total Members', value: stats.member_count },
+        { title: 'Boost Level', value: `${stats.premium_tier} (${stats.premium_subscription_count} boosts)` },
+        { title: 'Channels', value: stats.channels },
+        { title: 'Roles', value: stats.roles },
+    ];
+
+    return (
+        <div className="animate-fade-in">
+            <div className="flex justify-between items-center mb-8">
+                <h2 className="text-3xl font-bold text-white">Overview</h2>
+                <button onClick={fetchStats} disabled={isLoading} className="flex items-center gap-2 bg-gray-700/80 text-gray-300 font-semibold py-2 px-4 rounded-lg hover:bg-gray-600 transition-colors disabled:opacity-50 disabled:cursor-wait">
+                    <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} /> Sync
+                </button>
+            </div>
+            {isLoading && !stats.member_count ? (
+                <div className="flex justify-center items-center h-24"><Loader2 className="w-8 h-8 animate-spin text-cyan-400" /></div>
+            ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+                    {statCards.map(stat => (
+                        <div key={stat.title} className="bg-gray-800/60 p-6 rounded-2xl border border-cyan-400/20">
+                            <p className="text-gray-400 text-sm mb-2">{stat.title}</p>
+                            <p className="text-3xl font-bold text-white">{stat.value}</p>
+                        </div>
+                    ))}
+                </div>
+            )}
         </div>
-        <h3 className="text-2xl font-bold text-white mb-4">Live Activity Feed (Placeholder)</h3>
-        <div className="bg-gray-800/60 p-6 rounded-2xl border border-cyan-400/20">
-            <ul className="space-y-3 text-gray-300">
-                <li className="flex items-center gap-3"><span className="text-cyan-400/70 text-sm">12:38 PM</span> - User @Casey joined the server</li>
-                <li className="flex items-center gap-3"><span className="text-cyan-400/70 text-sm">12:37 PM</span> - User @Morgan muted for 1 hour</li>
-                <li className="flex items-center gap-3"><span className="text-cyan-400/70 text-sm">12:36 PM</span> - User @Taylor leveled up to level 5</li>
-            </ul>
-        </div>
-    </div>
-);
+    );
+};
+
 
 const AIManagerView = ({ showToast, selectedGuild }) => {
     const [buildServerPrompt, setBuildServerPrompt] = useState('');
@@ -242,7 +281,7 @@ const AIManagerView = ({ showToast, selectedGuild }) => {
 };
 
 const AutoModView = ({ showToast, selectedGuild }) => {
-    const [settings, setSettings] = useState({ profanityFilter: false, warningLimit: 3, limitAction: 'Kick', muteDuration: 10 });
+    const [settings, setSettings] = useState({ profanityFilter: false, warningLimit: 3, limitAction: 'Kick' });
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
 
@@ -253,10 +292,9 @@ const AutoModView = ({ showToast, selectedGuild }) => {
             const data = await response.json();
             if (!response.ok) throw new Error(data.error || 'Failed to fetch settings.');
             setSettings({
-                profanityFilter: data.profanity_filter_enabled || false,
-                warningLimit: data.warning_limit || 3,
-                limitAction: data.punishment_type || 'Kick',
-                muteDuration: data.mute_duration_minutes || 10,
+                profanityFilter: data.profanityFilter || false,
+                warningLimit: data.warningLimit || 3,
+                limitAction: data.limitAction || 'Kick',
             });
         } catch (error) {
             showToast(error.message, 'error');
@@ -317,15 +355,8 @@ const AutoModView = ({ showToast, selectedGuild }) => {
                             <select value={settings.limitAction} onChange={(e) => handleSettingChange('limitAction', e.target.value)} className="bg-gray-900 border border-gray-700 rounded-lg p-2 text-white focus:ring-2 focus:ring-cyan-400 transition">
                                 <option value="Ban">Ban</option>
                                 <option value="Kick">Kick</option>
-                                <option value="Mute">Mute</option>
                             </select>
                         </div>
-                        {settings.limitAction === 'Mute' && (
-                             <div>
-                                <label className="block text-gray-300 mb-2">Mute Duration (minutes)</label>
-                                <input type="number" min="1" value={settings.muteDuration} onChange={(e) => handleSettingChange('muteDuration', parseInt(e.target.value))} className="bg-gray-900 border border-gray-700 rounded-lg p-2 text-white w-24" />
-                            </div>
-                        )}
                     </div>
                 </div>
             </div>
@@ -370,7 +401,7 @@ const DashboardPage = ({ showToast, selectedGuild, onDeselectGuild }) => {
                     <nav><ul className="space-y-2">{sidebarItems.map(item => (<li key={item.name}><button onClick={() => setActiveView(item.name)} className={`w-full flex items-center gap-3 p-3 rounded-lg text-left transition-colors ${activeView === item.name ? 'bg-cyan-400/10 text-cyan-300' : 'text-gray-400 hover:bg-gray-700/50 hover:text-white'}`}>{item.icon}<span className="font-semibold">{item.name}</span></button></li>))}</ul></nav>
                 </aside>
                 <main className="flex-grow p-6 md:p-10 bg-gray-900/20 rounded-r-xl">
-                    {activeView === 'Overview' && <OverviewView />}
+                    {activeView === 'Overview' && <OverviewView selectedGuild={selectedGuild} showToast={showToast} />}
                     {activeView === 'AI Manager' && <AIManagerView showToast={showToast} selectedGuild={selectedGuild} />}
                     {activeView === 'AutoMod' && <AutoModView showToast={showToast} selectedGuild={selectedGuild} />}
                     {activeView === 'Feedback/Help' && <FeedbackHelpView showToast={showToast} />}
@@ -469,4 +500,3 @@ export default function App() {
         </div>
     );
 }
-

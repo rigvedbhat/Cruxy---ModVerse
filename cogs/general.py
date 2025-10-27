@@ -27,12 +27,10 @@ class General(commands.Cog):
         user_id = message.author.id
 
         # --- Handle AFK Status ---
-        # 1. Check if the user was AFK and remove their status
         if await self.db.get_afk_user(guild_id, user_id):
             await self.db.remove_afk(guild_id, user_id)
             await message.channel.send(f"👋 Welcome back, {message.author.mention}! I've removed your AFK status.", delete_after=10)
 
-        # 2. Check if the user mentioned anyone who is AFK
         for member in message.mentions:
             afk_message = await self.db.get_afk_user(guild_id, member.id)
             if afk_message:
@@ -42,10 +40,12 @@ class General(commands.Cog):
         new_level = await self.db.add_xp(guild_id, user_id, random.randint(5, 15))
         if new_level is not None:
             await message.channel.send(f"🎉 Congrats {message.author.mention}, you leveled up to **Level {new_level}**!")
-    
+        
+        # THIS IS THE FIX: Allow other on_message events to run
+        await self.bot.process_commands(message)
+
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
-        # Find the welcome channel
         welcome_channel = discord.utils.get(member.guild.text_channels, name='welcome')
         if not welcome_channel:
             return

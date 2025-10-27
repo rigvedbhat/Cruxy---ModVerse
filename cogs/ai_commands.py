@@ -17,22 +17,14 @@ class DeleteChannelView(ui.View):
             await interaction.response.send_message("❌ You need 'Manage Channels' permission to do this.", ephemeral=True)
             return
         
-        # Defer to prevent "interaction failed"
         await interaction.response.defer(ephemeral=True)
         
         await interaction.followup.send(f"✅ Deleting channel `{interaction.channel.name}` in 5 seconds...", ephemeral=True)
         await asyncio.sleep(5)
         try:
             await interaction.channel.delete(reason="Crux AI setup complete.")
-        except discord.NotFound:
+        except (discord.NotFound, discord.HTTPException):
             pass
-        except discord.HTTPException as e:
-            print(f"Failed to delete channel: {e}")
-            # Try to inform the user in the channel if followup fails, though it might be deleted.
-            try:
-                await interaction.channel.send("Could not delete this channel. Please check my permissions.", delete_after=10)
-            except:
-                pass
 
 
 class ConfirmBuildView(ui.View):
@@ -58,7 +50,6 @@ class ConfirmBuildView(ui.View):
             original_content += "\n**Server reset in progress. This may take a moment...**"
         await self.interaction.edit_original_response(content=original_content, view=self)
         
-        # We use the interaction channel for feedback from a slash command
         await self.cog._execute_build_plan(interaction.guild, interaction.channel, self.setup_plan, self.reset)
         self.stop()
 
@@ -85,12 +76,16 @@ class AICommands(commands.Cog):
     async def on_message(self, message: discord.Message):
         if message.author.bot or not message.guild:
             return
+            
         if self.bot.user in message.mentions:
             cleaned_message = message.content.replace(f'<@{self.bot.user.id}>', '').strip()
             if not cleaned_message:
                 await message.channel.send("Hello there! How can I help you today?", reference=message)
                 return
             await self.handle_chat_request(message, cleaned_message)
+        
+        # THIS IS THE FIX: Allow other on_message events to run
+        await self.bot.process_commands(message)
 
     async def handle_chat_request(self, message: discord.Message, prompt: str):
         channel_id = message.channel.id
@@ -140,20 +135,17 @@ class AICommands(commands.Cog):
 
     async def _execute_build_plan(self, guild: discord.Guild, feedback_channel: discord.TextChannel, setup_plan: dict, reset: bool):
         if not feedback_channel:
-            return # Cannot proceed without a channel to send updates to
+            return
 
         if reset:
             await feedback_channel.send("**Step 1/3:** Wiping existing server structure...")
-            # Delete channels first
             for channel in guild.channels:
-                # Don't delete the channel we are sending messages in
                 if channel.id != feedback_channel.id:
                     try:
                         await channel.delete(reason="Crux AI server reset")
                     except Exception as e:
                         print(f"Failed to delete channel {channel.name}: {e}")
             
-            # Then delete roles
             for role in guild.roles:
                 if role.name != "@everyone" and not role.managed and role < guild.me.top_role:
                     try:
@@ -215,8 +207,6 @@ class AICommands(commands.Cog):
             await feedback_channel.send(f"An unexpected error occurred during build: {e}")
 
     async def handle_api_build_request(self, guild: discord.Guild, theme: str, reset_server: bool):
-        # For API requests, find a suitable channel to send feedback to.
-        # Pick the first channel the bot can write in.
         feedback_channel = None
         for channel in guild.text_channels:
             if channel.permissions_for(guild.me).send_messages:
@@ -224,7 +214,8 @@ class AICommands(commands.Cog):
                 break
         
         if not feedback_channel:
-            return {'error': 'Bot could not find a channel to send messages in.'}
+            print("API build request failed: Bot could not find a channel to send messages in.")
+            return
 
         await feedback_channel.send(f"🤖 Received `/buildserver` request from the web dashboard for theme: **'{theme}'**")
 
@@ -232,25 +223,21 @@ class AICommands(commands.Cog):
         
         try:
             response = await model.generate_content_async(setup_prompt)
-            # ... (rest of the AI plan generation is the same)
             ai_response_text = response.text
             json_match = re.search(r"\{.*\}", ai_response_text, re.DOTALL)
             if not json_match:
                 await feedback_channel.send("❌ The AI's response was not in the correct format.")
-                return {'error': "AI response was not valid JSON."}
+                return
 
             setup_plan = json.loads(json_match.group(0))
             if not setup_plan or not setup_plan.get('plan'):
                  await feedback_channel.send("❌ The AI chose not to generate a server plan for that theme.")
-                 return {'error': "AI did not generate a plan."}
+                 return
 
             await self._execute_build_plan(guild, feedback_channel, setup_plan, reset_server)
-            return {'message': 'Build process started successfully! Check your Discord server for updates.'}
-
         except Exception as e:
             print(f"An unexpected error occurred in API build request: {e}")
             await feedback_channel.send(f"An unexpected error occurred: {e}")
-            return {'error': str(e)}
 
     def _get_setup_prompt(self, theme: str) -> str:
         return f"""
@@ -319,4 +306,3 @@ Generate the JSON object now.
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(AICommands(bot))
-
