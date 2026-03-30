@@ -1,0 +1,19 @@
+[Unit]
+Description=Seromod Discord Bot
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=seromod
+WorkingDirectory=/opt/seromod/seromod
+EnvironmentFile=/opt/seromod/seromod/.env
+ExecStart=/opt/seromod/seromod/.venv/bin/python bot.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=seromod
+
+[Install]
+WantedBy=multi-user.target

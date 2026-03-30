@@ -1,7 +1,30 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { ShieldCheck, Bot, Swords, Users, Settings, HelpCircle, Send, MessageSquare, BookOpen, ChevronDown, ChevronUp, Loader2, Home, LayoutDashboard, Menu, X, CheckCircle, AlertTriangle, Info, LogOut, RefreshCw } from 'lucide-react';
 
-const API_URL = 'http://127.0.0.1:5000';
+const API_URL = import.meta.env.VITE_API_URL || '';
+const API_KEY = import.meta.env.VITE_API_SECRET_KEY || '';
+const DISCORD_INVITE_URL =
+    'https://discord.com/oauth2/authorize?client_id=1361039241760604261&permissions=268527702&scope=bot%20applications.commands';
+
+async function apiFetch(path, options = {}) {
+    const url = API_URL ? `${API_URL}${path}` : path;
+    const headers = {
+        'Content-Type': 'application/json',
+        'X-API-Key': API_KEY,
+        ...(options.headers || {}),
+    };
+    return fetch(url, { ...options, headers });
+}
+
+function formatPermissionLabel(permissions) {
+    if (!permissions || permissions === 'public') return 'Public';
+    if (permissions === 'read-only') return 'Read-only';
+    if (typeof permissions === 'object' && permissions.type === 'restricted') {
+        const allowedRoles = Array.isArray(permissions.allow) ? permissions.allow : [];
+        return allowedRoles.length > 0 ? `Restricted: ${allowedRoles.join(', ')}` : 'Restricted';
+    }
+    return 'Custom';
+}
 
 // --- Helper Components ---
 
@@ -44,20 +67,19 @@ const AccordionItem = ({ title, content, isOpen, onClick }) => (
 // --- Page Components ---
 
 const HomePage = () => {
-    const INVITE_LINK = "#"; // Placeholder
     const features = [
-        { icon: <Bot size={32} />, title: "AI-Powered Server Building", description: "Experience dynamic building experience through cruxy's AI server building. /buildserver the way you want it." },
-        { icon: <Users size={32} />, title: "Community Engagement", description: "Boost user participation and create a thriving community with Cruxy's AI chat feature. Just @Cruxy and start chatting!" },
-        { icon: <ShieldCheck size={32} />, title: "Intelligent Moderation", description: "Maintain a safe and positive environment with cruxy's smart moderation tools, ensuring a respectful atmosphere." },
+        { icon: <Bot size={32} />, title: "AI-Powered Server Building", description: "Generate full server structures with Seromod's AI planning and build workflows." },
+        { icon: <Users size={32} />, title: "Community Engagement", description: "Keep your community active with conversational AI support and smart server automation." },
+        { icon: <ShieldCheck size={32} />, title: "Intelligent Moderation", description: "Maintain a safe and positive environment with Seromod's moderation and AutoMod tools." },
         { icon: <Swords size={32} />, title: "Fun Commands", description: "Keep your server members entertained with a variety of fun and interactive commands.", status: "Under development" },
     ];
 
     return (
         <div className="animate-fade-in text-center px-4 md:px-8">
             <div className="max-w-4xl mx-auto mt-16 mb-24 bg-gray-900/50 border border-cyan-400/30 p-8 md:p-12 rounded-2xl shadow-2xl shadow-cyan-500/10 backdrop-blur-sm">
-                <h1 className="text-4xl md:text-6xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-cyan-300 to-blue-400 mb-6">Crux AI: The AI-Powered Discord Bot</h1>
-                <p className="text-lg text-gray-300 max-w-2xl mx-auto mb-8">Enhance your Discord server with Crux AI, an AI-driven bot designed to elevate user engagement and community interaction.</p>
-                <a href={INVITE_LINK} className="inline-block bg-cyan-400 text-gray-900 font-bold py-3 px-8 rounded-xl hover:bg-cyan-300 transition-all duration-300 shadow-lg hover:shadow-cyan-400/40 transform hover:scale-105">Add to Discord</a>
+                <h1 className="text-4xl md:text-6xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-cyan-300 to-blue-400 mb-6">Seromod: The AI-Powered Discord Bot</h1>
+                <p className="text-lg text-gray-300 max-w-2xl mx-auto mb-8">Enhance your Discord server with Seromod, an AI-driven assistant designed to elevate moderation, setup, and community interaction.</p>
+                <a href={DISCORD_INVITE_URL} target="_blank" rel="noopener noreferrer" className="inline-block bg-cyan-400 text-gray-900 font-bold py-3 px-8 rounded-xl hover:bg-cyan-300 transition-all duration-300 shadow-lg hover:shadow-cyan-400/40 transform hover:scale-105">Add to Discord</a>
             </div>
             <div className="max-w-6xl mx-auto">
                 <h2 className="text-3xl font-bold text-white mb-10">Key Features</h2>
@@ -78,12 +100,12 @@ const HomePage = () => {
 
 const GuidePage = () => {
     const [openAccordion, setOpenAccordion] = useState(0);
-    const WIKI_URL = "https://github.com/rigvedbhat/Cruxy---ModVerse";
+    const WIKI_URL = 'https://github.com/rigvedbhat';
     const faqs = [
-        { q: "How do I add Cruxy to my server?", a: "To add Cruxy to your server, simply click the 'Add to Server' button on the Cruxy website and follow the authorization prompts." },
-        { q: "What commands does Cruxy have?", a: "Cruxy features a variety of commands, including AI-powered server building (/buildserver), moderation tools, and leveling systems." },
+        { q: "How do I add Seromod to my server?", a: "To add Seromod to your server, click the 'Add to Discord' button and complete the Discord authorization flow." },
+        { q: "What commands does Seromod have?", a: "Seromod includes AI-powered server building with /buildserver, natural-language server edits with /serveredit, moderation tools, and more." },
         { q: "How do I set up moderation features?", a: "You can configure all moderation settings from the AutoMod section in your dashboard." },
-        { q: "Can I customize Cruxy's AI responses?", a: "You can guide its actions through detailed prompts in commands like /buildserver and /serveredit." },
+        { q: "Can I customize Seromod's AI responses?", a: "You can guide its actions through detailed prompts in commands like /buildserver and /serveredit." },
     ];
 
     return (
@@ -91,7 +113,7 @@ const GuidePage = () => {
             <h1 className="text-4xl font-extrabold text-white text-center mb-12">Guide & Help</h1>
             <div className="text-center mb-16">
                 <a href={WIKI_URL} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 bg-cyan-400 text-gray-900 font-bold py-3 px-8 rounded-xl hover:bg-cyan-300 transition-all duration-300 shadow-lg hover:shadow-cyan-400/40 transform hover:scale-105">
-                    <BookOpen />Read the Full Documentation (Wiki)
+                    <BookOpen />View Project Resources
                 </a>
             </div>
             <h2 className="text-3xl font-bold text-white text-center mb-8">Frequently Asked Questions</h2>
@@ -115,7 +137,7 @@ const GuildSelector = ({ guilds, onSelectGuild, isLoading }) => (
         ) : guilds.length === 0 ? (
             <div className="bg-yellow-900/50 border border-yellow-600 p-6 rounded-xl text-yellow-200">
                 <h3 className="font-bold text-lg">No Servers Found</h3>
-                <p>Crux AI doesn't seem to be in any servers, or the backend is not connected. Invite the bot to a server to get started.</p>
+                <p>Seromod does not seem to be in any servers, or the backend is not connected. Invite the bot to a server to get started.</p>
             </div>
         ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
@@ -143,7 +165,7 @@ const OverviewView = ({ selectedGuild, showToast }) => {
     const fetchStats = useCallback(async () => {
         setIsLoading(true);
         try {
-            const response = await fetch(`${API_URL}/api/guilds/${selectedGuild.id}/info`);
+            const response = await apiFetch(`/api/guilds/${selectedGuild.id}/info`);
             const data = await response.json();
             if (!response.ok) throw new Error(data.error || 'Failed to fetch server info.');
             setStats(data);
@@ -196,33 +218,78 @@ const AIManagerView = ({ showToast, selectedGuild }) => {
     const [buildServerPrompt, setBuildServerPrompt] = useState('');
     const [editServerPrompt, setEditServerPrompt] = useState('');
     const [resetServer, setResetServer] = useState(false);
-    const [isBuilding, setIsBuilding] = useState(false);
+    const [buildPreview, setBuildPreview] = useState(null);
+    const [isGeneratingPreview, setIsGeneratingPreview] = useState(false);
+    const [isApprovingBuild, setIsApprovingBuild] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
 
-    const handleBuildServer = async () => {
+    const previewRoles = useMemo(() => buildPreview?.preview?.roles || [], [buildPreview]);
+    const previewCategories = useMemo(() => buildPreview?.preview?.categories || [], [buildPreview]);
+
+    const resetPreviewState = () => setBuildPreview(null);
+
+    useEffect(() => {
+        setBuildPreview(null);
+    }, [selectedGuild?.id]);
+
+    const handlePreviewBuild = async (regenerate = false) => {
         if (!buildServerPrompt || !selectedGuild) {
             showToast('Please enter a prompt.', 'error');
             return;
         }
-        setIsBuilding(true);
+
+        setIsGeneratingPreview(true);
         try {
-            const response = await fetch(`${API_URL}/api/buildserver`, {
+            const response = await apiFetch('/api/buildserver/preview', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     guildId: selectedGuild.id,
                     prompt: buildServerPrompt,
-                    resetServer: resetServer,
+                    resetServer,
+                    variationHint: regenerate ? `${Date.now()}` : '',
                 }),
             });
             const data = await response.json();
-            if (!response.ok) throw new Error(data.error || 'Failed to execute command.');
-            showToast(data.message || 'Build command sent successfully!', 'success');
-            setBuildServerPrompt('');
+            if (!response.ok) throw new Error(data.error || 'Failed to generate preview.');
+            setBuildPreview(data);
+            showToast(
+                regenerate ? 'Generated a fresh server draft.' : 'Preview generated. Review it before approving.',
+                'success'
+            );
         } catch (error) {
             showToast(error.message, 'error');
         } finally {
-            setIsBuilding(false);
+            setIsGeneratingPreview(false);
+        }
+    };
+
+    const handleApproveBuild = async () => {
+        if (!selectedGuild || !buildPreview?.setupPlan) {
+            showToast('Generate a preview before approving the build.', 'error');
+            return;
+        }
+
+        setIsApprovingBuild(true);
+        try {
+            const response = await apiFetch('/api/buildserver/execute', {
+                method: 'POST',
+                body: JSON.stringify({
+                    guildId: selectedGuild.id,
+                    prompt: buildServerPrompt,
+                    resetServer,
+                    setupPlan: buildPreview.setupPlan,
+                }),
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Failed to approve the build.');
+            showToast(data.message || 'Approved build sent successfully!', 'success');
+            setBuildServerPrompt('');
+            setResetServer(false);
+            setBuildPreview(null);
+        } catch (error) {
+            showToast(error.message, 'error');
+        } finally {
+            setIsApprovingBuild(false);
         }
     };
 
@@ -233,9 +300,8 @@ const AIManagerView = ({ showToast, selectedGuild }) => {
         }
         setIsEditing(true);
         try {
-            const response = await fetch(`${API_URL}/api/serveredit`, {
+            const response = await apiFetch('/api/serveredit', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ guildId: selectedGuild.id, prompt: editServerPrompt }),
             });
             const data = await response.json();
@@ -254,18 +320,134 @@ const AIManagerView = ({ showToast, selectedGuild }) => {
             <h2 className="text-3xl font-bold text-white">AI Manager</h2>
             <div className="bg-gray-800/60 p-8 rounded-2xl border border-cyan-400/20">
                 <h3 className="text-2xl font-bold text-white mb-2">Server Build (/buildserver)</h3>
-                <p className="text-gray-400 mb-6">Describe the server you want to create. The AI will generate channels, roles, and permissions.</p>
-                <textarea value={buildServerPrompt} onChange={(e) => setBuildServerPrompt(e.target.value)} className="w-full h-32 p-3 bg-gray-900 rounded-lg text-gray-200 border border-gray-700 focus:ring-2 focus:ring-cyan-400 transition mb-4 resize-none" placeholder="e.g., 'Create a server for a Valorant community...'" />
-                <div className="flex items-center justify-between mt-4">
-                    <label className="flex items-center gap-2 cursor-pointer text-yellow-300">
-                        <input type="checkbox" checked={resetServer} onChange={(e) => setResetServer(e.target.checked)} className="form-checkbox h-5 w-5 rounded bg-gray-700 border-gray-600 text-yellow-500 focus:ring-yellow-500" />
-                        <span className="font-semibold">Reset Server (Deletes all channels/roles)</span>
-                    </label>
-                    <button onClick={handleBuildServer} disabled={isBuilding} className="flex items-center justify-center bg-cyan-400 text-gray-900 font-bold py-3 px-6 rounded-xl hover:bg-cyan-300 transition-all shadow-lg hover:shadow-cyan-400/40 disabled:bg-gray-500 disabled:cursor-not-allowed">
-                        {isBuilding ? <Loader2 className="animate-spin mr-2" /> : <Bot className="mr-2" />}
-                        {isBuilding ? 'Executing...' : 'Execute /buildserver'}
+                <p className="text-gray-400 mb-6">Describe the server you want to create. Seromod will draft the roles, categories, and channels first so you can review them before anything is created.</p>
+                <textarea
+                    value={buildServerPrompt}
+                    onChange={(e) => {
+                        setBuildServerPrompt(e.target.value);
+                        resetPreviewState();
+                    }}
+                    className="w-full h-32 p-3 bg-gray-900 rounded-lg text-gray-200 border border-gray-700 focus:ring-2 focus:ring-cyan-400 transition mb-4 resize-none"
+                    placeholder="e.g., 'Create a server for a Valorant community...'"
+                />
+                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mt-4">
+                    <div className="flex items-center gap-4">
+                        <div>
+                            <p className="font-semibold text-red-300">Reset the server</p>
+                            <p className="text-sm text-gray-400">Deletes all current channels and roles before building.</p>
+                        </div>
+                        <button
+                            type="button"
+                            aria-pressed={resetServer}
+                            onClick={() => {
+                                setResetServer((current) => !current);
+                                resetPreviewState();
+                            }}
+                            className={`relative inline-flex h-8 w-16 items-center rounded-full border transition-colors ${
+                                resetServer
+                                    ? 'bg-red-500 border-red-400'
+                                    : 'bg-gray-700 border-gray-600'
+                            }`}
+                        >
+                            <span
+                                className={`inline-block h-6 w-6 transform rounded-full bg-white shadow transition-transform ${
+                                    resetServer ? 'translate-x-9' : 'translate-x-1'
+                                }`}
+                            />
+                        </button>
+                    </div>
+                    <button
+                        onClick={() => handlePreviewBuild(false)}
+                        disabled={isGeneratingPreview}
+                        className="flex items-center justify-center bg-cyan-400 text-gray-900 font-bold py-3 px-6 rounded-xl hover:bg-cyan-300 transition-all shadow-lg hover:shadow-cyan-400/40 disabled:bg-gray-500 disabled:cursor-not-allowed"
+                    >
+                        {isGeneratingPreview ? <Loader2 className="animate-spin mr-2" /> : <Bot className="mr-2" />}
+                        {isGeneratingPreview ? 'Generating Preview...' : 'Generate Preview'}
                     </button>
                 </div>
+                {buildPreview && (
+                    <div className="mt-8 rounded-2xl border border-cyan-400/25 bg-gray-900/70 p-6 space-y-6">
+                        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                            <div>
+                                <p className="text-sm uppercase tracking-[0.2em] text-cyan-300 mb-2">Server Preview</p>
+                                <h4 className="text-2xl font-bold text-white mb-2">Review before building</h4>
+                                <p className="text-gray-300 max-w-2xl">Prompt: {buildPreview.prompt || buildServerPrompt}</p>
+                                <p className={`mt-2 text-sm font-semibold ${resetServer ? 'text-red-300' : 'text-emerald-300'}`}>
+                                    {resetServer ? 'Reset mode is enabled for this build.' : 'Reset mode is disabled for this build.'}
+                                </p>
+                            </div>
+                            <div className="flex flex-wrap gap-3">
+                                <button
+                                    onClick={() => handlePreviewBuild(true)}
+                                    disabled={isGeneratingPreview || isApprovingBuild}
+                                    className="flex items-center justify-center bg-gray-700 text-white font-bold py-3 px-5 rounded-xl hover:bg-gray-600 transition-all disabled:bg-gray-600 disabled:cursor-not-allowed"
+                                >
+                                    {isGeneratingPreview ? <Loader2 className="animate-spin mr-2" /> : <RefreshCw className="mr-2 w-5 h-5" />}
+                                    Redo
+                                </button>
+                                <button
+                                    onClick={handleApproveBuild}
+                                    disabled={isApprovingBuild || isGeneratingPreview}
+                                    className="flex items-center justify-center bg-emerald-400 text-gray-900 font-bold py-3 px-5 rounded-xl hover:bg-emerald-300 transition-all shadow-lg hover:shadow-emerald-400/30 disabled:bg-gray-500 disabled:cursor-not-allowed"
+                                >
+                                    {isApprovingBuild ? <Loader2 className="animate-spin mr-2" /> : <CheckCircle className="mr-2 w-5 h-5" />}
+                                    {isApprovingBuild ? 'Approving...' : 'Approve & Build'}
+                                </button>
+                            </div>
+                        </div>
+                        <div className="grid gap-6 xl:grid-cols-[280px_1fr]">
+                            <div className="rounded-xl border border-cyan-400/15 bg-gray-800/70 p-5">
+                                <h5 className="text-lg font-bold text-white mb-4">Roles</h5>
+                                {previewRoles.length > 0 ? (
+                                    <div className="flex flex-wrap gap-2">
+                                        {previewRoles.map((role) => (
+                                            <span key={role} className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-sm text-cyan-200">
+                                                {role}
+                                            </span>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <p className="text-sm text-gray-400">No new roles are planned for this draft.</p>
+                                )}
+                            </div>
+                            <div className="rounded-xl border border-cyan-400/15 bg-gray-800/70 p-5">
+                                <h5 className="text-lg font-bold text-white mb-4">Server Structure</h5>
+                                {previewCategories.length > 0 ? (
+                                    <div className="space-y-4">
+                                        {previewCategories.map((category) => (
+                                            <div key={category.name} className="rounded-xl border border-gray-700/80 bg-gray-900/70 p-4">
+                                                <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
+                                                    <p className="font-semibold text-cyan-200">{category.name}</p>
+                                                    <p className="text-xs uppercase tracking-[0.18em] text-gray-500">{category.channels.length} channels</p>
+                                                </div>
+                                                {category.channels.length > 0 ? (
+                                                    <div className="mt-4 space-y-3">
+                                                        {category.channels.map((channel) => (
+                                                            <div key={`${category.name}-${channel.name}`} className="rounded-lg border border-gray-800 bg-gray-950/70 p-3">
+                                                                <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                                                                    <p className="font-semibold text-white">
+                                                                        {channel.type === 'voice' ? 'Voice' : 'Text'}: {channel.name}
+                                                                    </p>
+                                                                    <span className="text-xs text-gray-400">{formatPermissionLabel(channel.permissions)}</span>
+                                                                </div>
+                                                                {channel.topic && <p className="mt-2 text-sm text-gray-400">Topic: {channel.topic}</p>}
+                                                                {channel.message && <p className="mt-2 text-sm text-gray-500">Starter message: {channel.message}</p>}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <p className="mt-3 text-sm text-gray-500">No channels planned for this category.</p>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <p className="text-sm text-gray-400">No server structure was returned for this preview.</p>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
             <div className="bg-gray-800/60 p-8 rounded-2xl border border-cyan-400/20">
                 <h3 className="text-2xl font-bold text-white mb-2">Server Edit (/serveredit)</h3>
@@ -275,6 +457,11 @@ const AIManagerView = ({ showToast, selectedGuild }) => {
                     {isEditing ? <Loader2 className="animate-spin mr-2" /> : <Bot className="mr-2" />}
                     {isEditing ? 'Executing...' : 'Execute /serveredit'}
                 </button>
+            </div>
+            <div className="sticky bottom-4 z-10">
+                <div className="rounded-full border border-yellow-400/30 bg-gray-950/90 px-5 py-3 text-center text-sm text-yellow-200 shadow-lg backdrop-blur">
+                    "Seromod" can make mistakes, review before taking the action.
+                </div>
             </div>
         </div>
     );
@@ -288,7 +475,7 @@ const AutoModView = ({ showToast, selectedGuild }) => {
     const fetchSettings = useCallback(async () => {
         setIsLoading(true);
         try {
-            const response = await fetch(`${API_URL}/api/automod_settings/${selectedGuild.id}`);
+            const response = await apiFetch(`/api/automod_settings/${selectedGuild.id}`);
             const data = await response.json();
             if (!response.ok) throw new Error(data.error || 'Failed to fetch settings.');
             setSettings({
@@ -310,9 +497,8 @@ const AutoModView = ({ showToast, selectedGuild }) => {
     const handleSaveSettings = async () => {
         setIsSaving(true);
         try {
-            const response = await fetch(`${API_URL}/api/automod_settings/${selectedGuild.id}`, {
+            const response = await apiFetch(`/api/automod_settings/${selectedGuild.id}`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(settings),
             });
             const data = await response.json();
@@ -376,7 +562,7 @@ const FeedbackHelpView = ({ showToast }) => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const handleSubmitFeedback = async () => { setIsSubmitting(true); console.log("Submitting feedback:", feedback); await new Promise(r => setTimeout(r, 1000)); showToast('Feedback submitted!', 'success'); setFeedback(''); setIsSubmitting(false); };
     return (
-        <div className="animate-fade-in"><h2 className="text-3xl font-bold text-white mb-2">Submit Feedback</h2><p className="text-gray-400 mb-8">Your feedback helps us improve Cruxy.</p><textarea value={feedback} onChange={(e) => setFeedback(e.target.value)} className="w-full h-40 p-3 bg-gray-900 rounded-lg text-gray-200 border border-gray-700 focus:ring-2 focus:ring-cyan-400 transition mb-4 resize-none" placeholder="Your Message..." /><button onClick={handleSubmitFeedback} disabled={isSubmitting} className="w-48 flex items-center justify-center bg-cyan-400 text-gray-900 font-bold py-3 px-6 rounded-xl hover:bg-cyan-300 transition-all shadow-lg hover:shadow-cyan-400/40 disabled:bg-gray-500 disabled:cursor-not-allowed">{isSubmitting ? <Loader2 className="animate-spin mr-2" /> : null}{isSubmitting ? 'Submitting...' : 'Submit'}</button></div>
+        <div className="animate-fade-in"><h2 className="text-3xl font-bold text-white mb-2">Submit Feedback</h2><p className="text-gray-400 mb-8">Your feedback helps us improve Seromod.</p><textarea value={feedback} onChange={(e) => setFeedback(e.target.value)} className="w-full h-40 p-3 bg-gray-900 rounded-lg text-gray-200 border border-gray-700 focus:ring-2 focus:ring-cyan-400 transition mb-4 resize-none" placeholder="Your Message..." /><button onClick={handleSubmitFeedback} disabled={isSubmitting} className="w-48 flex items-center justify-center bg-cyan-400 text-gray-900 font-bold py-3 px-6 rounded-xl hover:bg-cyan-300 transition-all shadow-lg hover:shadow-cyan-400/40 disabled:bg-gray-500 disabled:cursor-not-allowed">{isSubmitting ? <Loader2 className="animate-spin mr-2" /> : null}{isSubmitting ? 'Submitting...' : 'Submit'}</button></div>
     );
 };
 
@@ -428,7 +614,7 @@ export default function App() {
         const fetchGuilds = async () => {
             setIsLoadingGuilds(true);
             try {
-                const response = await fetch(`${API_URL}/api/guilds`);
+                const response = await apiFetch('/api/guilds');
                 if (!response.ok) throw new Error('Network response was not ok');
                 const data = await response.json();
                 setGuilds(Array.isArray(data) ? data : []);
@@ -444,7 +630,7 @@ export default function App() {
     }, [showToast]);
 
     useEffect(() => {
-        const savedGuildId = localStorage.getItem('selectedGuildId');
+        const savedGuildId = sessionStorage.getItem('selectedGuildId');
         if (savedGuildId && guilds.length > 0) {
             const savedGuild = guilds.find(g => g.id === savedGuildId);
             if (savedGuild) setSelectedGuild(savedGuild);
@@ -459,12 +645,12 @@ export default function App() {
 
     const handleSelectGuild = (guild) => {
         setSelectedGuild(guild);
-        localStorage.setItem('selectedGuildId', guild.id);
+        sessionStorage.setItem('selectedGuildId', guild.id);
     };
 
     const handleDeselectGuild = () => {
         setSelectedGuild(null);
-        localStorage.removeItem('selectedGuildId');
+        sessionStorage.removeItem('selectedGuildId');
     };
     
     const NavLink = ({ pageName, children }) => (
@@ -484,19 +670,19 @@ export default function App() {
             <ToastNotification notification={notification} onClose={() => setNotification(null)} />
             <header className="sticky top-0 z-40 bg-gray-900/80 backdrop-blur-lg border-b border-cyan-400/10">
                 <div className="container mx-auto px-6 py-4 flex justify-between items-center">
-                    <div className="flex items-center gap-2 cursor-pointer" onClick={() => handleNavigate('home')}><Bot className="text-cyan-400" size={28}/><span className="text-2xl font-bold">Crux AI</span></div>
+                    <div className="flex items-center gap-2 cursor-pointer" onClick={() => handleNavigate('home')}><Bot className="text-cyan-400" size={28}/><span className="text-2xl font-bold">Seromod</span></div>
                     <nav className="hidden md:flex items-center gap-8"><NavLink pageName="Home">Home</NavLink><NavLink pageName="Dashboard">Dashboard</NavLink><NavLink pageName="Guide">Guide</NavLink></nav>
-                    <div className="hidden md:block"><a href="#" className="bg-cyan-500/20 border border-cyan-400 text-cyan-300 font-bold py-2 px-5 rounded-xl hover:bg-cyan-400 hover:text-gray-900 transition-all duration-300">Add to Discord</a></div>
+                    <div className="hidden md:block"><a href={DISCORD_INVITE_URL} target="_blank" rel="noopener noreferrer" className="bg-cyan-500/20 border border-cyan-400 text-cyan-300 font-bold py-2 px-5 rounded-xl hover:bg-cyan-400 hover:text-gray-900 transition-all duration-300">Add to Discord</a></div>
                     <div className="md:hidden"><button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>{isMobileMenuOpen ? <X size={28} /> : <Menu size={28} />}</button></div>
                 </div>
                 {isMobileMenuOpen && (
                     <div className="md:hidden bg-gray-900/90 backdrop-blur-lg pb-4 animate-fade-in-down">
-                        <nav className="flex flex-col items-center gap-6 pt-4"><NavLink pageName="Home">Home</NavLink><NavLink pageName="Dashboard">Dashboard</NavLink><NavLink pageName="Guide">Guide</NavLink><a href="#" className="bg-cyan-400 text-gray-900 font-bold py-2 px-5 rounded-xl hover:bg-cyan-300 transition-all">Add to Discord</a></nav>
+                        <nav className="flex flex-col items-center gap-6 pt-4"><NavLink pageName="Home">Home</NavLink><NavLink pageName="Dashboard">Dashboard</NavLink><NavLink pageName="Guide">Guide</NavLink><a href={DISCORD_INVITE_URL} target="_blank" rel="noopener noreferrer" className="bg-cyan-400 text-gray-900 font-bold py-2 px-5 rounded-xl hover:bg-cyan-300 transition-all">Add to Discord</a></nav>
                     </div>
                 )}
             </header>
             <main className="container mx-auto px-2 py-8 md:py-12">{renderPage()}</main>
-            <footer className="bg-gray-900/50 border-t border-cyan-400/10 mt-16"><div className="container mx-auto px-6 py-6 text-center text-gray-400"><p>&copy; 2025 Crux AI by ModVerse. All Rights Reserved.</p></div></footer>
+            <footer className="bg-gray-900/50 border-t border-cyan-400/10 mt-16"><div className="container mx-auto px-6 py-6 text-center text-gray-400"><p>&copy; 2025 Seromod. All Rights Reserved.</p></div></footer>
         </div>
     );
 }

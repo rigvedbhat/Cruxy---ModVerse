@@ -1,36 +1,43 @@
 import aiosqlite
 
+
 class PersistentDB:
     def __init__(self, path="bot_data.db"):
         self.path = path
         self.conn = None
 
     async def connect(self):
-        # The timeout parameter helps prevent 'database is locked' errors
-        self.conn = await aiosqlite.connect(self.path, timeout=10)
-        await self.conn.execute('PRAGMA foreign_keys = ON;')
-        await self.conn.execute('PRAGMA journal_mode=WAL;') # Improves concurrency
+        if self.conn:
+            return
 
-        # --- Updated automod_settings schema ---
-        await self.conn.execute('''
+        self.conn = await aiosqlite.connect(self.path, timeout=10)
+        await self.conn.execute("PRAGMA foreign_keys = ON;")
+        await self.conn.execute("PRAGMA journal_mode=WAL;")
+
+        await self.conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS automod_settings (
                 guild_id INTEGER PRIMARY KEY,
                 profanity_filter_enabled BOOLEAN DEFAULT 1,
                 warning_limit INTEGER DEFAULT 3,
                 punishment_type TEXT DEFAULT 'kick'
             )
-        ''')
+            """
+        )
 
-        await self.conn.execute('''
+        await self.conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS warnings (
                 guild_id INTEGER NOT NULL,
                 user_id INTEGER NOT NULL,
                 count INTEGER DEFAULT 1,
                 PRIMARY KEY (guild_id, user_id)
             )
-        ''')
+            """
+        )
 
-        await self.conn.execute('''
+        await self.conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS user_data (
                 guild_id INTEGER NOT NULL,
                 user_id INTEGER NOT NULL,
@@ -38,26 +45,32 @@ class PersistentDB:
                 level INTEGER DEFAULT 0,
                 PRIMARY KEY (guild_id, user_id)
             )
-        ''')
+            """
+        )
 
-        await self.conn.execute('''
+        await self.conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS afk_users (
                 guild_id INTEGER NOT NULL,
                 user_id INTEGER NOT NULL,
                 message TEXT,
                 PRIMARY KEY (guild_id, user_id)
             )
-        ''')
+            """
+        )
 
-        await self.conn.execute('''
+        await self.conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS reaction_roles (
                 message_id INTEGER PRIMARY KEY,
                 guild_id INTEGER NOT NULL,
                 channel_id INTEGER NOT NULL
             )
-        ''')
+            """
+        )
 
-        await self.conn.execute('''
+        await self.conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS reaction_role_mappings (
                 message_id INTEGER NOT NULL,
                 emoji TEXT NOT NULL,
@@ -65,45 +78,76 @@ class PersistentDB:
                 PRIMARY KEY (message_id, emoji),
                 FOREIGN KEY (message_id) REFERENCES reaction_roles(message_id) ON DELETE CASCADE
             )
-        ''')
+            """
+        )
+
+        await self.conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS scheduled_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                guild_id INTEGER NOT NULL,
+                channel_id INTEGER NOT NULL,
+                event_name TEXT NOT NULL,
+                description TEXT,
+                event_time INTEGER NOT NULL,
+                reminder_time INTEGER NOT NULL,
+                ping_role_id INTEGER,
+                reminder_sent BOOLEAN DEFAULT 0
+            )
+            """
+        )
+
+        migration_stmts = [
+            "ALTER TABLE automod_settings ADD COLUMN punishment_type TEXT DEFAULT 'kick'",
+        ]
+        for stmt in migration_stmts:
+            try:
+                await self.conn.execute(stmt)
+            except Exception:
+                pass
 
         await self.conn.commit()
 
     async def close(self):
         if self.conn:
             await self.conn.close()
+            self.conn = None
 
-    # ---------- Warning System ----------
     async def add_warning(self, guild_id, user_id):
         await self.conn.execute(
             "INSERT INTO warnings (guild_id, user_id, count) VALUES (?, ?, 1) "
             "ON CONFLICT(guild_id, user_id) DO UPDATE SET count = count + 1",
-            (guild_id, user_id)
+            (guild_id, user_id),
         )
         await self.conn.commit()
 
         async with self.conn.execute(
-            "SELECT count FROM warnings WHERE guild_id=? AND user_id=?", (guild_id, user_id)
+            "SELECT count FROM warnings WHERE guild_id=? AND user_id=?",
+            (guild_id, user_id),
         ) as cursor:
             row = await cursor.fetchone()
             return row[0] if row else 0
 
     async def get_warnings(self, guild_id, user_id):
         async with self.conn.execute(
-            "SELECT count FROM warnings WHERE guild_id=? AND user_id=?", (guild_id, user_id)
+            "SELECT count FROM warnings WHERE guild_id=? AND user_id=?",
+            (guild_id, user_id),
         ) as cursor:
             row = await cursor.fetchone()
             return row[0] if row else 0
 
     async def reset_warnings(self, guild_id, user_id):
-        await self.conn.execute("DELETE FROM warnings WHERE guild_id=? AND user_id=?", (guild_id, user_id))
+        await self.conn.execute(
+            "DELETE FROM warnings WHERE guild_id=? AND user_id=?",
+            (guild_id, user_id),
+        )
         await self.conn.commit()
 
-    # ---------- AutoMod Settings (Updated) ----------
     async def get_automod_settings(self, guild_id):
         async with self.conn.execute(
-            "SELECT profanity_filter_enabled, warning_limit, punishment_type FROM automod_settings WHERE guild_id=?",
-            (guild_id,)
+            "SELECT profanity_filter_enabled, warning_limit, punishment_type "
+            "FROM automod_settings WHERE guild_id=?",
+            (guild_id,),
         ) as cursor:
             row = await cursor.fetchone()
             if row:
@@ -112,34 +156,34 @@ class PersistentDB:
                     "warningLimit": row[1],
                     "limitAction": row[2],
                 }
-        # Return default settings if none are found
         return {
             "profanityFilter": True,
             "warningLimit": 3,
-            "limitAction": 'kick',
+            "limitAction": "kick",
         }
 
     async def set_automod_settings(self, guild_id, profanity_filter, limit, punishment):
         await self.conn.execute(
-            "INSERT OR REPLACE INTO automod_settings (guild_id, profanity_filter_enabled, warning_limit, punishment_type) VALUES (?, ?, ?, ?)",
-            (guild_id, profanity_filter, limit, punishment)
+            "INSERT OR REPLACE INTO automod_settings "
+            "(guild_id, profanity_filter_enabled, warning_limit, punishment_type) "
+            "VALUES (?, ?, ?, ?)",
+            (guild_id, profanity_filter, limit, punishment),
         )
         await self.conn.commit()
 
-
-    # ---------- XP System ----------
     async def add_xp(self, guild_id, user_id, xp_to_add):
         await self.conn.execute(
             "INSERT OR IGNORE INTO user_data (guild_id, user_id, xp, level) VALUES (?, ?, 0, 0)",
-            (guild_id, user_id)
+            (guild_id, user_id),
         )
         await self.conn.execute(
             "UPDATE user_data SET xp = xp + ? WHERE guild_id = ? AND user_id = ?",
-            (xp_to_add, guild_id, user_id)
+            (xp_to_add, guild_id, user_id),
         )
 
         async with self.conn.execute(
-            "SELECT xp, level FROM user_data WHERE guild_id=? AND user_id=?", (guild_id, user_id)
+            "SELECT xp, level FROM user_data WHERE guild_id=? AND user_id=?",
+            (guild_id, user_id),
         ) as cursor:
             row = await cursor.fetchone()
             xp, level = row if row else (0, 0)
@@ -150,7 +194,7 @@ class PersistentDB:
             new_xp = xp - required_xp
             await self.conn.execute(
                 "UPDATE user_data SET level = ?, xp = ? WHERE guild_id = ? AND user_id = ?",
-                (new_level, new_xp, guild_id, user_id)
+                (new_level, new_xp, guild_id, user_id),
             )
             await self.conn.commit()
             return new_level
@@ -160,46 +204,49 @@ class PersistentDB:
 
     async def get_xp_and_level(self, guild_id, user_id):
         async with self.conn.execute(
-            "SELECT xp, level FROM user_data WHERE guild_id=? AND user_id=?", (guild_id, user_id)
+            "SELECT xp, level FROM user_data WHERE guild_id=? AND user_id=?",
+            (guild_id, user_id),
         ) as cursor:
             row = await cursor.fetchone()
             return (row[0], row[1]) if row else (0, 0)
 
-    # ---------- AFK ----------
     async def set_afk(self, guild_id, user_id, message):
         await self.conn.execute(
             "INSERT OR REPLACE INTO afk_users (guild_id, user_id, message) VALUES (?, ?, ?)",
-            (guild_id, user_id, message)
+            (guild_id, user_id, message),
         )
         await self.conn.commit()
 
     async def remove_afk(self, guild_id, user_id):
-        await self.conn.execute("DELETE FROM afk_users WHERE guild_id=? AND user_id=?", (guild_id, user_id))
+        await self.conn.execute(
+            "DELETE FROM afk_users WHERE guild_id=? AND user_id=?",
+            (guild_id, user_id),
+        )
         await self.conn.commit()
 
     async def get_afk_user(self, guild_id, user_id):
         async with self.conn.execute(
-            "SELECT message FROM afk_users WHERE guild_id=? AND user_id=?", (guild_id, user_id)
+            "SELECT message FROM afk_users WHERE guild_id=? AND user_id=?",
+            (guild_id, user_id),
         ) as cursor:
             row = await cursor.fetchone()
             return row[0] if row else None
 
-    # ---------- Reaction Roles ----------
     async def add_reaction_role(self, message_id, guild_id, channel_id, emoji, role_id):
         await self.conn.execute(
             "INSERT OR IGNORE INTO reaction_roles (message_id, guild_id, channel_id) VALUES (?, ?, ?)",
-            (message_id, guild_id, channel_id)
+            (message_id, guild_id, channel_id),
         )
         await self.conn.execute(
             "INSERT OR REPLACE INTO reaction_role_mappings (message_id, emoji, role_id) VALUES (?, ?, ?)",
-            (message_id, emoji, role_id)
+            (message_id, emoji, role_id),
         )
         await self.conn.commit()
 
     async def get_reaction_role(self, message_id, emoji):
         async with self.conn.execute(
             "SELECT role_id FROM reaction_role_mappings WHERE message_id=? AND emoji=?",
-            (message_id, str(emoji))
+            (message_id, str(emoji)),
         ) as cursor:
             row = await cursor.fetchone()
             return row[0] if row else None
@@ -213,3 +260,49 @@ class PersistentDB:
                     roles[message_id] = {}
                 roles[message_id][emoji] = role_id
         return roles
+
+    async def add_event(
+        self,
+        guild_id,
+        channel_id,
+        name,
+        description,
+        event_ts,
+        reminder_ts,
+        ping_role_id=None,
+    ):
+        await self.conn.execute(
+            """
+            INSERT INTO scheduled_events
+            (guild_id, channel_id, event_name, description, event_time, reminder_time, ping_role_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                guild_id,
+                channel_id,
+                name,
+                description,
+                int(event_ts),
+                int(reminder_ts),
+                ping_role_id,
+            ),
+        )
+        await self.conn.commit()
+
+    async def get_pending_reminders(self, now_ts):
+        async with self.conn.execute(
+            """
+            SELECT id, guild_id, channel_id, event_name, description, event_time, ping_role_id
+            FROM scheduled_events
+            WHERE reminder_time <= ? AND reminder_sent = 0
+            """,
+            (int(now_ts),),
+        ) as cursor:
+            return await cursor.fetchall()
+
+    async def mark_reminder_sent(self, event_id):
+        await self.conn.execute(
+            "UPDATE scheduled_events SET reminder_sent = 1 WHERE id = ?",
+            (event_id,),
+        )
+        await self.conn.commit()
