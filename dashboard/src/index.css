@@ -1,3 +1,19 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+html, body {
+  background-color: #0a0a0a;
+  margin: 0;
+  padding: 0;
+}
+
+/* Remove any browser-added glow or outline */
+*:focus {
+  outline: none;
+}
+
+*:focus-visible {
+  outline: 2px solid #5865F2;
+  outline-offset: 2px;
+}

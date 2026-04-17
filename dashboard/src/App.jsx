@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { ShieldCheck, Bot, Swords, Users, Settings, HelpCircle, Send, MessageSquare, BookOpen, ChevronDown, ChevronUp, Loader2, Home, LayoutDashboard, Menu, X, CheckCircle, AlertTriangle, Info, LogOut, RefreshCw } from 'lucide-react';
+import RainingLetters from '@/components/ui/modern-animated-hero-section';
+import { ShieldCheck, Bot, Swords, Users, Settings, HelpCircle, Send, MessageSquare, BookOpen, ChevronDown, ChevronUp, Loader2, Home, LayoutDashboard, Menu, X, CheckCircle, AlertTriangle, Info, LogOut, RefreshCw, PanelLeftClose, PanelLeftOpen, Mail, RotateCcw } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 const API_KEY = import.meta.env.VITE_API_SECRET_KEY || '';
@@ -26,6 +27,12 @@ function formatPermissionLabel(permissions) {
     return 'Custom';
 }
 
+// --- Helper: Detect if prompt is a "build" type ---
+function isBuildPrompt(prompt) {
+    const buildKeywords = /\b(build|create|make|set\s*up|setup|new server|generate server|start fresh|from scratch|design a server)\b/i;
+    return buildKeywords.test(prompt);
+}
+
 // --- Helper Components ---
 
 const ToastNotification = ({ notification, onClose }) => {
@@ -34,7 +41,7 @@ const ToastNotification = ({ notification, onClose }) => {
     const toastStyles = {
         success: { bg: 'bg-green-600/90', border: 'border-green-500', icon: <CheckCircle className="w-6 h-6 text-white" /> },
         error: { bg: 'bg-red-600/90', border: 'border-red-500', icon: <AlertTriangle className="w-6 h-6 text-white" /> },
-        info: { bg: 'bg-blue-600/90', border: 'border-blue-500', icon: <Info className="w-6 h-6 text-white" /> }
+        info: { bg: 'bg-gray-700/90', border: 'border-gray-500', icon: <Info className="w-6 h-6 text-white" /> }
     };
     const currentStyle = toastStyles[type] || toastStyles.info;
 
@@ -53,14 +60,20 @@ const ToastNotification = ({ notification, onClose }) => {
 };
 
 const AccordionItem = ({ title, content, isOpen, onClick }) => (
-    <div className="border border-cyan-400/20 bg-gray-900/50 rounded-xl overflow-hidden mb-4 transition-all duration-300">
-        <button onClick={onClick} className="w-full flex justify-between items-center p-5 text-left font-semibold text-white hover:bg-cyan-400/10 transition-colors">
+    <div className="rounded-xl overflow-hidden mb-4 transition-all duration-300">
+        <button onClick={onClick} className="w-full flex justify-between items-center p-5 text-left font-semibold text-white transition-colors bg-transparent">
             <span>{title}</span>
-            {isOpen ? <ChevronUp className="w-5 h-5 text-cyan-400" /> : <ChevronDown className="w-5 h-5 text-cyan-400" />}
+            {isOpen ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
         </button>
         <div className={`transition-all duration-500 ease-in-out overflow-hidden ${isOpen ? 'max-h-96' : 'max-h-0'}`}>
             <div className="p-5 pt-0 text-gray-300">{content}</div>
         </div>
+    </div>
+);
+
+const SeromodLogo = ({ onClick, className = '' }) => (
+    <div className={`flex items-center cursor-pointer ${className}`} onClick={onClick}>
+        <span className="text-2xl font-bold">Sero<span style={{ color: '#5865F2' }}>mod</span></span>
     </div>
 );
 
@@ -76,17 +89,17 @@ const HomePage = () => {
 
     return (
         <div className="animate-fade-in text-center px-4 md:px-8">
-            <div className="max-w-4xl mx-auto mt-16 mb-24 bg-gray-900/50 border border-cyan-400/30 p-8 md:p-12 rounded-2xl shadow-2xl shadow-cyan-500/10 backdrop-blur-sm">
-                <h1 className="text-4xl md:text-6xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-cyan-300 to-blue-400 mb-6">Seromod: The AI-Powered Discord Bot</h1>
+            <div className="max-w-4xl mx-auto mt-16 mb-24 p-8 md:p-12 rounded-2xl">
+                <h1 className="text-4xl md:text-6xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400 mb-6">Seromod: The AI-Powered Discord Bot</h1>
                 <p className="text-lg text-gray-300 max-w-2xl mx-auto mb-8">Enhance your Discord server with Seromod, an AI-driven assistant designed to elevate moderation, setup, and community interaction.</p>
-                <a href={DISCORD_INVITE_URL} target="_blank" rel="noopener noreferrer" className="inline-block bg-cyan-400 text-gray-900 font-bold py-3 px-8 rounded-xl hover:bg-cyan-300 transition-all duration-300 shadow-lg hover:shadow-cyan-400/40 transform hover:scale-105">Add to Discord</a>
+                <a href={DISCORD_INVITE_URL} target="_blank" rel="noopener noreferrer" className="inline-block bg-[#5865F2] text-white font-bold py-3 px-8 rounded-xl hover:bg-[#4752C4] transition-all duration-300 shadow-lg hover:shadow-[#5865F2]/40 transform hover:scale-105">Add to Discord</a>
             </div>
             <div className="max-w-6xl mx-auto">
                 <h2 className="text-3xl font-bold text-white mb-10">Key Features</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
                     {features.map((feature, index) => (
-                        <div key={index} className="bg-gray-800/60 p-6 rounded-2xl border border-cyan-400/20 shadow-lg hover:border-cyan-400/50 hover:shadow-cyan-500/20 transition-all duration-300 text-left transform hover:-translate-y-2">
-                            <div className="text-cyan-400 mb-4">{feature.icon}</div>
+                        <div key={index} className="p-6 rounded-2xl transition-all duration-300 text-left transform hover:-translate-y-2 bg-transparent">
+                            <div className="text-white mb-4">{feature.icon}</div>
                             <h3 className="text-xl font-bold text-white mb-2">{feature.title}</h3>
                             <p className="text-gray-400">{feature.description}</p>
                             {feature.status && <p className="text-sm text-yellow-400 mt-4 font-semibold">{feature.status}</p>}
@@ -100,7 +113,7 @@ const HomePage = () => {
 
 const GuidePage = () => {
     const [openAccordion, setOpenAccordion] = useState(0);
-    const WIKI_URL = 'https://github.com/rigvedbhat';
+    const WIKI_URL = 'https://github.com/rigvedbhat/Seromod/wiki';
     const faqs = [
         { q: "How do I add Seromod to my server?", a: "To add Seromod to your server, click the 'Add to Discord' button and complete the Discord authorization flow." },
         { q: "What commands does Seromod have?", a: "Seromod includes AI-powered server building with /buildserver, natural-language server edits with /serveredit, moderation tools, and more." },
@@ -112,8 +125,8 @@ const GuidePage = () => {
         <div className="max-w-4xl mx-auto p-4 md:p-8 animate-fade-in">
             <h1 className="text-4xl font-extrabold text-white text-center mb-12">Guide & Help</h1>
             <div className="text-center mb-16">
-                <a href={WIKI_URL} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 bg-cyan-400 text-gray-900 font-bold py-3 px-8 rounded-xl hover:bg-cyan-300 transition-all duration-300 shadow-lg hover:shadow-cyan-400/40 transform hover:scale-105">
-                    <BookOpen />View Project Resources
+                <a href={WIKI_URL} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 bg-[#5865F2] text-white font-bold py-3 px-8 rounded-xl hover:bg-[#4752C4] transition-all duration-300 shadow-lg hover:shadow-[#5865F2]/40 transform hover:scale-105">
+                    <BookOpen />Official Wiki
                 </a>
             </div>
             <h2 className="text-3xl font-bold text-white text-center mb-8">Frequently Asked Questions</h2>
@@ -133,17 +146,17 @@ const GuildSelector = ({ guilds, onSelectGuild, isLoading }) => (
         <h1 className="text-4xl font-bold text-white mb-4">Select a Server</h1>
         <p className="text-gray-400 mb-12">Choose a server to manage its settings.</p>
         {isLoading ? (
-            <div className="flex justify-center items-center h-64"><Loader2 className="w-16 h-16 animate-spin text-cyan-400" /></div>
+            <div className="flex justify-center items-center h-64"><Loader2 className="w-16 h-16 animate-spin text-white" /></div>
         ) : guilds.length === 0 ? (
-            <div className="bg-yellow-900/50 border border-yellow-600 p-6 rounded-xl text-yellow-200">
+            <div className="border border-yellow-600/30 p-6 rounded-xl text-yellow-200">
                 <h3 className="font-bold text-lg">No Servers Found</h3>
                 <p>Seromod does not seem to be in any servers, or the backend is not connected. Invite the bot to a server to get started.</p>
             </div>
         ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                 {guilds.map((guild) => (
-                    <button key={guild.id} onClick={() => onSelectGuild(guild)} className="bg-gray-800/60 p-6 rounded-2xl border border-cyan-400/20 shadow-lg hover:border-cyan-400/50 hover:shadow-cyan-500/20 transition-all duration-300 transform hover:-translate-y-2 focus:outline-none focus:ring-2 focus:ring-cyan-400">
-                        <img src={guild.icon || `https://placehold.co/128x128/1F2937/7DD3FC?text=${guild.name.charAt(0)}`} alt={`${guild.name} icon`} className="w-32 h-32 rounded-full mx-auto mb-4 object-cover" />
+                    <button key={guild.id} onClick={() => onSelectGuild(guild)} className="p-6 rounded-2xl transition-all duration-300 transform hover:-translate-y-2 focus:outline-none bg-transparent">
+                        <img src={guild.icon || `https://placehold.co/128x128/1a1a2e/FFFFFF?text=${guild.name.charAt(0)}`} alt={`${guild.name} icon`} className="w-32 h-32 rounded-full mx-auto mb-4 object-cover" />
                         <span className="font-semibold text-lg">{guild.name}</span>
                     </button>
                 ))}
@@ -178,7 +191,7 @@ const OverviewView = ({ selectedGuild, showToast }) => {
 
     useEffect(() => {
         fetchStats();
-        const interval = setInterval(fetchStats, 60000); // Auto-refresh every 60 seconds
+        const interval = setInterval(fetchStats, 60000);
         return () => clearInterval(interval);
     }, [fetchStats]);
 
@@ -193,16 +206,16 @@ const OverviewView = ({ selectedGuild, showToast }) => {
         <div className="animate-fade-in">
             <div className="flex justify-between items-center mb-8">
                 <h2 className="text-3xl font-bold text-white">Overview</h2>
-                <button onClick={fetchStats} disabled={isLoading} className="flex items-center gap-2 bg-gray-700/80 text-gray-300 font-semibold py-2 px-4 rounded-lg hover:bg-gray-600 transition-colors disabled:opacity-50 disabled:cursor-wait">
+                <button onClick={fetchStats} disabled={isLoading} className="flex items-center gap-2 bg-white/10 text-gray-300 font-semibold py-2 px-4 rounded-lg hover:bg-white/15 transition-colors disabled:opacity-50 disabled:cursor-wait">
                     <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} /> Sync
                 </button>
             </div>
             {isLoading && !stats.member_count ? (
-                <div className="flex justify-center items-center h-24"><Loader2 className="w-8 h-8 animate-spin text-cyan-400" /></div>
+                <div className="flex justify-center items-center h-24"><Loader2 className="w-8 h-8 animate-spin text-white" /></div>
             ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
                     {statCards.map(stat => (
-                        <div key={stat.title} className="bg-gray-800/60 p-6 rounded-2xl border border-cyan-400/20">
+                        <div key={stat.title} className="p-6 rounded-2xl bg-transparent">
                             <p className="text-gray-400 text-sm mb-2">{stat.title}</p>
                             <p className="text-3xl font-bold text-white">{stat.value}</p>
                         </div>
@@ -215,37 +228,51 @@ const OverviewView = ({ selectedGuild, showToast }) => {
 
 
 const AIManagerView = ({ showToast, selectedGuild }) => {
-    const [buildServerPrompt, setBuildServerPrompt] = useState('');
-    const [editServerPrompt, setEditServerPrompt] = useState('');
+    const [prompt, setPrompt] = useState('');
     const [resetServer, setResetServer] = useState(false);
+    const [showResetConfirm, setShowResetConfirm] = useState(false);
     const [buildPreview, setBuildPreview] = useState(null);
-    const [isGeneratingPreview, setIsGeneratingPreview] = useState(false);
+    const [isProcessing, setIsProcessing] = useState(false);
     const [isApprovingBuild, setIsApprovingBuild] = useState(false);
-    const [isEditing, setIsEditing] = useState(false);
 
     const previewRoles = useMemo(() => buildPreview?.preview?.roles || [], [buildPreview]);
     const previewCategories = useMemo(() => buildPreview?.preview?.categories || [], [buildPreview]);
 
-    const resetPreviewState = () => setBuildPreview(null);
-
     useEffect(() => {
         setBuildPreview(null);
+        setShowResetConfirm(false);
     }, [selectedGuild?.id]);
 
-    const handlePreviewBuild = async (regenerate = false) => {
-        if (!buildServerPrompt || !selectedGuild) {
+    const handleSubmit = () => {
+        if (!prompt.trim() || !selectedGuild) {
             showToast('Please enter a prompt.', 'error');
             return;
         }
 
-        setIsGeneratingPreview(true);
+        if (isBuildPrompt(prompt)) {
+            // It's a build command — ask about reset first
+            setShowResetConfirm(true);
+        } else {
+            // It's an edit command — execute directly
+            handleEditServer();
+        }
+    };
+
+    const handleConfirmBuild = (shouldReset) => {
+        setResetServer(shouldReset);
+        setShowResetConfirm(false);
+        handlePreviewBuild(false, shouldReset);
+    };
+
+    const handlePreviewBuild = async (regenerate = false, resetOverride = resetServer) => {
+        setIsProcessing(true);
         try {
             const response = await apiFetch('/api/buildserver/preview', {
                 method: 'POST',
                 body: JSON.stringify({
                     guildId: selectedGuild.id,
-                    prompt: buildServerPrompt,
-                    resetServer,
+                    prompt: prompt,
+                    resetServer: resetOverride,
                     variationHint: regenerate ? `${Date.now()}` : '',
                 }),
             });
@@ -259,7 +286,7 @@ const AIManagerView = ({ showToast, selectedGuild }) => {
         } catch (error) {
             showToast(error.message, 'error');
         } finally {
-            setIsGeneratingPreview(false);
+            setIsProcessing(false);
         }
     };
 
@@ -275,7 +302,7 @@ const AIManagerView = ({ showToast, selectedGuild }) => {
                 method: 'POST',
                 body: JSON.stringify({
                     guildId: selectedGuild.id,
-                    prompt: buildServerPrompt,
+                    prompt: prompt,
                     resetServer,
                     setupPlan: buildPreview.setupPlan,
                 }),
@@ -283,7 +310,7 @@ const AIManagerView = ({ showToast, selectedGuild }) => {
             const data = await response.json();
             if (!response.ok) throw new Error(data.error || 'Failed to approve the build.');
             showToast(data.message || 'Approved build sent successfully!', 'success');
-            setBuildServerPrompt('');
+            setPrompt('');
             setResetServer(false);
             setBuildPreview(null);
         } catch (error) {
@@ -294,175 +321,156 @@ const AIManagerView = ({ showToast, selectedGuild }) => {
     };
 
     const handleEditServer = async () => {
-        if (!editServerPrompt || !selectedGuild) {
-            showToast('Please enter a prompt.', 'error');
-            return;
-        }
-        setIsEditing(true);
+        setIsProcessing(true);
         try {
             const response = await apiFetch('/api/serveredit', {
                 method: 'POST',
-                body: JSON.stringify({ guildId: selectedGuild.id, prompt: editServerPrompt }),
+                body: JSON.stringify({ guildId: selectedGuild.id, prompt: prompt }),
             });
             const data = await response.json();
             if (!response.ok) throw new Error(data.error || 'Failed to execute command.');
             showToast(data.message || 'Edit command sent successfully!', 'success');
-            setEditServerPrompt('');
+            setPrompt('');
         } catch (error) {
             showToast(error.message, 'error');
         } finally {
-            setIsEditing(false);
+            setIsProcessing(false);
         }
     };
 
     return (
-        <div className="animate-fade-in space-y-12">
+        <div className="animate-fade-in space-y-8">
             <h2 className="text-3xl font-bold text-white">AI Manager</h2>
-            <div className="bg-gray-800/60 p-8 rounded-2xl border border-cyan-400/20">
-                <h3 className="text-2xl font-bold text-white mb-2">Server Build (/buildserver)</h3>
-                <p className="text-gray-400 mb-6">Describe the server you want to create. Seromod will draft the roles, categories, and channels first so you can review them before anything is created.</p>
+
+            {/* Single unified input */}
+            <div className="p-8 rounded-2xl bg-transparent">
+                <h3 className="text-2xl font-bold text-white mb-2">What would you like to do?</h3>
+                <p className="text-gray-400 mb-6">Describe what you want — Seromod will figure out whether to build a new server structure or edit the existing one.</p>
                 <textarea
-                    value={buildServerPrompt}
+                    value={prompt}
                     onChange={(e) => {
-                        setBuildServerPrompt(e.target.value);
-                        resetPreviewState();
+                        setPrompt(e.target.value);
+                        setBuildPreview(null);
+                        setShowResetConfirm(false);
                     }}
-                    className="w-full h-32 p-3 bg-gray-900 rounded-lg text-gray-200 border border-gray-700 focus:ring-2 focus:ring-cyan-400 transition mb-4 resize-none"
-                    placeholder="e.g., 'Create a server for a Valorant community...'"
+                    className="w-full h-32 p-3 bg-transparent rounded-lg text-gray-200 focus:outline-none transition mb-4 resize-none placeholder-gray-500 border-none"
+                    placeholder="e.g., 'Create a Valorant community server' or 'Add a new text channel called #announcements'"
                 />
-                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mt-4">
-                    <div className="flex items-center gap-4">
-                        <div>
-                            <p className="font-semibold text-red-300">Reset the server</p>
-                            <p className="text-sm text-gray-400">Deletes all current channels and roles before building.</p>
-                        </div>
-                        <button
-                            type="button"
-                            aria-pressed={resetServer}
-                            onClick={() => {
-                                setResetServer((current) => !current);
-                                resetPreviewState();
-                            }}
-                            className={`relative inline-flex h-8 w-16 items-center rounded-full border transition-colors ${
-                                resetServer
-                                    ? 'bg-red-500 border-red-400'
-                                    : 'bg-gray-700 border-gray-600'
-                            }`}
-                        >
-                            <span
-                                className={`inline-block h-6 w-6 transform rounded-full bg-white shadow transition-transform ${
-                                    resetServer ? 'translate-x-9' : 'translate-x-1'
-                                }`}
-                            />
-                        </button>
-                    </div>
-                    <button
-                        onClick={() => handlePreviewBuild(false)}
-                        disabled={isGeneratingPreview}
-                        className="flex items-center justify-center bg-cyan-400 text-gray-900 font-bold py-3 px-6 rounded-xl hover:bg-cyan-300 transition-all shadow-lg hover:shadow-cyan-400/40 disabled:bg-gray-500 disabled:cursor-not-allowed"
-                    >
-                        {isGeneratingPreview ? <Loader2 className="animate-spin mr-2" /> : <Bot className="mr-2" />}
-                        {isGeneratingPreview ? 'Generating Preview...' : 'Generate Preview'}
-                    </button>
-                </div>
-                {buildPreview && (
-                    <div className="mt-8 rounded-2xl border border-cyan-400/25 bg-gray-900/70 p-6 space-y-6">
-                        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                            <div>
-                                <p className="text-sm uppercase tracking-[0.2em] text-cyan-300 mb-2">Server Preview</p>
-                                <h4 className="text-2xl font-bold text-white mb-2">Review before building</h4>
-                                <p className="text-gray-300 max-w-2xl">Prompt: {buildPreview.prompt || buildServerPrompt}</p>
-                                <p className={`mt-2 text-sm font-semibold ${resetServer ? 'text-red-300' : 'text-emerald-300'}`}>
-                                    {resetServer ? 'Reset mode is enabled for this build.' : 'Reset mode is disabled for this build.'}
-                                </p>
-                            </div>
-                            <div className="flex flex-wrap gap-3">
-                                <button
-                                    onClick={() => handlePreviewBuild(true)}
-                                    disabled={isGeneratingPreview || isApprovingBuild}
-                                    className="flex items-center justify-center bg-gray-700 text-white font-bold py-3 px-5 rounded-xl hover:bg-gray-600 transition-all disabled:bg-gray-600 disabled:cursor-not-allowed"
-                                >
-                                    {isGeneratingPreview ? <Loader2 className="animate-spin mr-2" /> : <RefreshCw className="mr-2 w-5 h-5" />}
-                                    Redo
-                                </button>
-                                <button
-                                    onClick={handleApproveBuild}
-                                    disabled={isApprovingBuild || isGeneratingPreview}
-                                    className="flex items-center justify-center bg-emerald-400 text-gray-900 font-bold py-3 px-5 rounded-xl hover:bg-emerald-300 transition-all shadow-lg hover:shadow-emerald-400/30 disabled:bg-gray-500 disabled:cursor-not-allowed"
-                                >
-                                    {isApprovingBuild ? <Loader2 className="animate-spin mr-2" /> : <CheckCircle className="mr-2 w-5 h-5" />}
-                                    {isApprovingBuild ? 'Approving...' : 'Approve & Build'}
-                                </button>
-                            </div>
-                        </div>
-                        <div className="grid gap-6 xl:grid-cols-[280px_1fr]">
-                            <div className="rounded-xl border border-cyan-400/15 bg-gray-800/70 p-5">
-                                <h5 className="text-lg font-bold text-white mb-4">Roles</h5>
-                                {previewRoles.length > 0 ? (
-                                    <div className="flex flex-wrap gap-2">
-                                        {previewRoles.map((role) => (
-                                            <span key={role} className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-sm text-cyan-200">
-                                                {role}
-                                            </span>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <p className="text-sm text-gray-400">No new roles are planned for this draft.</p>
-                                )}
-                            </div>
-                            <div className="rounded-xl border border-cyan-400/15 bg-gray-800/70 p-5">
-                                <h5 className="text-lg font-bold text-white mb-4">Server Structure</h5>
-                                {previewCategories.length > 0 ? (
-                                    <div className="space-y-4">
-                                        {previewCategories.map((category) => (
-                                            <div key={category.name} className="rounded-xl border border-gray-700/80 bg-gray-900/70 p-4">
-                                                <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
-                                                    <p className="font-semibold text-cyan-200">{category.name}</p>
-                                                    <p className="text-xs uppercase tracking-[0.18em] text-gray-500">{category.channels.length} channels</p>
-                                                </div>
-                                                {category.channels.length > 0 ? (
-                                                    <div className="mt-4 space-y-3">
-                                                        {category.channels.map((channel) => (
-                                                            <div key={`${category.name}-${channel.name}`} className="rounded-lg border border-gray-800 bg-gray-950/70 p-3">
-                                                                <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                                                                    <p className="font-semibold text-white">
-                                                                        {channel.type === 'voice' ? 'Voice' : 'Text'}: {channel.name}
-                                                                    </p>
-                                                                    <span className="text-xs text-gray-400">{formatPermissionLabel(channel.permissions)}</span>
-                                                                </div>
-                                                                {channel.topic && <p className="mt-2 text-sm text-gray-400">Topic: {channel.topic}</p>}
-                                                                {channel.message && <p className="mt-2 text-sm text-gray-500">Starter message: {channel.message}</p>}
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                ) : (
-                                                    <p className="mt-3 text-sm text-gray-500">No channels planned for this category.</p>
-                                                )}
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <p className="text-sm text-gray-400">No server structure was returned for this preview.</p>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                )}
-            </div>
-            <div className="bg-gray-800/60 p-8 rounded-2xl border border-cyan-400/20">
-                <h3 className="text-2xl font-bold text-white mb-2">Server Edit (/serveredit)</h3>
-                <p className="text-gray-400 mb-6">Describe changes to make to the current server configuration.</p>
-                <textarea value={editServerPrompt} onChange={(e) => setEditServerPrompt(e.target.value)} className="w-full h-32 p-3 bg-gray-900 rounded-lg text-gray-200 border border-gray-700 focus:ring-2 focus:ring-cyan-400 transition mb-4 resize-none" placeholder="e.g., 'Add a new text channel called #announcements...'" />
-                <button onClick={handleEditServer} disabled={isEditing} className="w-full flex items-center justify-center bg-cyan-400 text-gray-900 font-bold py-3 px-6 rounded-xl hover:bg-cyan-300 transition-all shadow-lg hover:shadow-cyan-400/40 disabled:bg-gray-500 disabled:cursor-not-allowed">
-                    {isEditing ? <Loader2 className="animate-spin mr-2" /> : <Bot className="mr-2" />}
-                    {isEditing ? 'Executing...' : 'Execute /serveredit'}
+                <button
+                    onClick={handleSubmit}
+                    disabled={isProcessing}
+                    className="w-full flex items-center justify-center bg-[#5865F2] text-white font-bold py-3 px-6 rounded-xl hover:bg-[#4752C4] transition-all shadow-lg hover:shadow-[#5865F2]/30 disabled:bg-gray-600 disabled:cursor-not-allowed"
+                >
+                    {isProcessing ? <Loader2 className="animate-spin mr-2" /> : <Bot className="mr-2" />}
+                    {isProcessing ? 'Processing...' : 'Execute'}
                 </button>
             </div>
-            <div className="sticky bottom-4 z-10">
-                <div className="rounded-full border border-yellow-400/30 bg-gray-950/90 px-5 py-3 text-center text-sm text-yellow-200 shadow-lg backdrop-blur">
-                    "Seromod" can make mistakes, review before taking the action.
+
+            {/* Reset confirmation dialog */}
+            {showResetConfirm && (
+                <div className="p-6 rounded-2xl animate-fade-in bg-transparent">
+                    <h4 className="text-lg font-bold text-white mb-4">Do you want to reset the server? (It will delete the existing structure, proceed with caution)</h4>
+                    <div className="flex gap-3">
+                        <button
+                            onClick={() => handleConfirmBuild(true)}
+                            className="flex items-center bg-red-500/80 text-white font-bold py-2 px-5 rounded-xl hover:bg-red-500 transition-all"
+                        >
+                            Yes, Reset & Build
+                        </button>
+                        <button
+                            onClick={() => handleConfirmBuild(false)}
+                            className="flex items-center bg-white/10 text-white font-bold py-2 px-5 rounded-xl hover:bg-white/15 transition-all"
+                        >
+                            No, Keep Existing
+                        </button>
+                    </div>
                 </div>
-            </div>
+            )}
+
+            {/* Build preview */}
+            {buildPreview && (
+                <div className="rounded-2xl p-6 space-y-6 animate-fade-in bg-transparent">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                        <div>
+                            <p className="text-sm uppercase tracking-[0.2em] text-gray-400 mb-2">Server Preview</p>
+                            <h4 className="text-2xl font-bold text-white mb-2">Review before building</h4>
+                            <p className="text-gray-300 max-w-2xl">Prompt: {buildPreview.prompt || prompt}</p>
+                            <p className={`mt-2 text-sm font-semibold ${resetServer ? 'text-red-300' : 'text-emerald-300'}`}>
+                                {resetServer ? 'Reset mode is enabled for this build.' : 'Reset mode is disabled for this build.'}
+                            </p>
+                        </div>
+                        <div className="flex flex-wrap gap-3">
+                            <button
+                                onClick={() => handlePreviewBuild(true)}
+                                disabled={isProcessing || isApprovingBuild}
+                                className="flex items-center justify-center bg-white/10 text-white font-bold py-3 px-5 rounded-xl hover:bg-white/15 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {isProcessing ? <Loader2 className="animate-spin mr-2" /> : <RefreshCw className="mr-2 w-5 h-5" />}
+                                Redo
+                            </button>
+                            <button
+                                onClick={handleApproveBuild}
+                                disabled={isApprovingBuild || isProcessing}
+                                className="flex items-center justify-center bg-emerald-500/80 text-white font-bold py-3 px-5 rounded-xl hover:bg-emerald-500 transition-all shadow-lg hover:shadow-emerald-500/30 disabled:bg-gray-600 disabled:cursor-not-allowed"
+                            >
+                                {isApprovingBuild ? <Loader2 className="animate-spin mr-2" /> : <CheckCircle className="mr-2 w-5 h-5" />}
+                                {isApprovingBuild ? 'Approving...' : 'Approve & Build'}
+                            </button>
+                        </div>
+                    </div>
+                    <div className="grid gap-6 xl:grid-cols-[280px_1fr]">
+                        <div className="rounded-xl p-5 bg-transparent">
+                            <h5 className="text-lg font-bold text-white mb-4">Roles</h5>
+                            {previewRoles.length > 0 ? (
+                                <div className="flex flex-wrap gap-2">
+                                    {previewRoles.map((role) => (
+                                        <span key={role} className="rounded-full border border-white/15 px-3 py-1 text-sm text-gray-200">
+                                            {role}
+                                        </span>
+                                    ))}
+                                </div>
+                            ) : (
+                                <p className="text-sm text-gray-400">No new roles are planned for this draft.</p>
+                            )}
+                        </div>
+                        <div className="rounded-xl p-5 bg-transparent">
+                            <h5 className="text-lg font-bold text-white mb-4">Server Structure</h5>
+                            {previewCategories.length > 0 ? (
+                                <div className="space-y-4">
+                                    {previewCategories.map((category) => (
+                                        <div key={category.name} className="rounded-xl p-4 bg-transparent">
+                                            <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
+                                                <p className="font-semibold text-gray-200">{category.name}</p>
+                                                <p className="text-xs uppercase tracking-[0.18em] text-gray-500">{category.channels.length} channels</p>
+                                            </div>
+                                            {category.channels.length > 0 ? (
+                                                <div className="mt-4 space-y-3">
+                                                    {category.channels.map((channel) => (
+                                                        <div key={`${category.name}-${channel.name}`} className="rounded-lg p-3 bg-transparent">
+                                                            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                                                                <p className="font-semibold text-white">
+                                                                    {channel.type === 'voice' ? 'Voice' : 'Text'}: {channel.name}
+                                                                </p>
+                                                                <span className="text-xs text-gray-400">{formatPermissionLabel(channel.permissions)}</span>
+                                                            </div>
+                                                            {channel.topic && <p className="mt-2 text-sm text-gray-400">Topic: {channel.topic}</p>}
+                                                            {channel.message && <p className="mt-2 text-sm text-gray-500">Starter message: {channel.message}</p>}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                <p className="mt-3 text-sm text-gray-500">No channels planned for this category.</p>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <p className="text-sm text-gray-400">No server structure was returned for this preview.</p>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
@@ -471,6 +479,10 @@ const AutoModView = ({ showToast, selectedGuild }) => {
     const [settings, setSettings] = useState({ profanityFilter: false, warningLimit: 3, limitAction: 'Kick' });
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
+    const [members, setMembers] = useState([]);
+    const [selectedMember, setSelectedMember] = useState('');
+    const [isResetting, setIsResetting] = useState(false);
+    const [isLoadingMembers, setIsLoadingMembers] = useState(false);
 
     const fetchSettings = useCallback(async () => {
         setIsLoading(true);
@@ -490,9 +502,25 @@ const AutoModView = ({ showToast, selectedGuild }) => {
         }
     }, [selectedGuild, showToast]);
 
+    const fetchMembers = useCallback(async () => {
+        setIsLoadingMembers(true);
+        try {
+            const response = await apiFetch(`/api/guilds/${selectedGuild.id}/members`);
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Failed to fetch members.');
+            setMembers(Array.isArray(data) ? data : []);
+        } catch (error) {
+            console.error('Failed to fetch members:', error);
+            setMembers([]);
+        } finally {
+            setIsLoadingMembers(false);
+        }
+    }, [selectedGuild]);
+
     useEffect(() => {
         fetchSettings();
-    }, [fetchSettings]);
+        fetchMembers();
+    }, [fetchSettings, fetchMembers]);
 
     const handleSaveSettings = async () => {
         setIsSaving(true);
@@ -511,13 +539,37 @@ const AutoModView = ({ showToast, selectedGuild }) => {
         }
     };
 
+    const handleResetWarnings = async () => {
+        if (!selectedMember) {
+            showToast('Please select a member first.', 'error');
+            return;
+        }
+        setIsResetting(true);
+        try {
+            const response = await apiFetch(`/api/guilds/${selectedGuild.id}/warnings/reset`, {
+                method: 'POST',
+                body: JSON.stringify({ userId: selectedMember }),
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Failed to reset warnings.');
+            showToast(data.message || 'Warnings reset successfully!', 'success');
+            setSelectedMember('');
+        } catch (error) {
+            showToast(error.message, 'error');
+        } finally {
+            setIsResetting(false);
+        }
+    };
+
     const handleSettingChange = (key, value) => {
         setSettings(prev => ({ ...prev, [key]: value }));
     };
 
     if (isLoading) {
-        return <div className="flex justify-center items-center h-64"><Loader2 className="w-12 h-12 animate-spin text-cyan-400" /></div>;
+        return <div className="flex justify-center items-center h-64"><Loader2 className="w-12 h-12 animate-spin text-white" /></div>;
     }
+
+    const sliderPercent = ((settings.warningLimit - 1) / 19) * 100;
 
     return (
         <div className="animate-fade-in">
@@ -531,23 +583,69 @@ const AutoModView = ({ showToast, selectedGuild }) => {
                 <div>
                     <h3 className="text-xl font-bold text-white">Warning System</h3>
                     <p className="text-gray-400 mb-4">Configure actions after a user reaches the warning limit.</p>
-                    <div className="space-y-4">
+                    <div className="space-y-6">
                         <div>
-                            <label className="block text-gray-300 mb-2">Warning Limit</label>
-                            <input type="number" min="1" max="20" value={settings.warningLimit} onChange={(e) => handleSettingChange('warningLimit', parseInt(e.target.value))} className="bg-gray-900 border border-gray-700 rounded-lg p-2 text-white w-24" />
+                            <label className="block text-gray-300 mb-3">Warning Limit: <span className="text-white font-bold text-lg">{settings.warningLimit}</span></label>
+                            <input
+                                type="range"
+                                min="1"
+                                max="20"
+                                value={settings.warningLimit}
+                                onChange={(e) => handleSettingChange('warningLimit', parseInt(e.target.value))}
+                                className="w-full max-w-md h-2 rounded-lg appearance-none cursor-pointer"
+                                style={{
+                                    background: `linear-gradient(to right, #5865F2 0%, #5865F2 ${sliderPercent}%, rgba(255,255,255,0.15) ${sliderPercent}%, rgba(255,255,255,0.15) 100%)`,
+                                    accentColor: '#5865F2',
+                                }}
+                            />
+                            <div className="flex justify-between max-w-md text-xs text-gray-500 mt-1">
+                                <span>1</span><span>5</span><span>10</span><span>15</span><span>20</span>
+                            </div>
                         </div>
                         <div>
                             <label className="block text-gray-300 mb-2">Action on Limit</label>
-                            <select value={settings.limitAction} onChange={(e) => handleSettingChange('limitAction', e.target.value)} className="bg-gray-900 border border-gray-700 rounded-lg p-2 text-white focus:ring-2 focus:ring-cyan-400 transition">
-                                <option value="Ban">Ban</option>
-                                <option value="Kick">Kick</option>
+                            <select value={settings.limitAction} onChange={(e) => handleSettingChange('limitAction', e.target.value)} className="bg-transparent border-none rounded-lg p-2 text-white focus:outline-none focus:ring-0 transition">
+                                <option value="Ban" className="bg-[#0a0a0a]">Ban</option>
+                                <option value="Kick" className="bg-[#0a0a0a]">Kick</option>
                             </select>
                         </div>
                     </div>
                 </div>
+
+                {/* Reset User Warnings */}
+                <div>
+                    <h3 className="text-xl font-bold text-white">Reset User Warnings</h3>
+                    <p className="text-gray-400 mb-4">Select a member to reset their warning count to zero. <span className="text-white font-bold">Ensure the user has Admin permissions in the said server.</span></p>
+                    <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-end">
+                        <div className="flex-grow w-full sm:w-auto">
+                            <label className="block text-gray-300 mb-2">Select Member</label>
+                            <select
+                                value={selectedMember}
+                                onChange={(e) => setSelectedMember(e.target.value)}
+                                className="w-full bg-transparent border-none rounded-lg p-2 text-white focus:outline-none focus:ring-0 transition"
+                                disabled={isLoadingMembers}
+                            >
+                                <option value="" className="bg-[#0a0a0a]">-- Select a member --</option>
+                                {members.map((member) => (
+                                    <option key={member.id} value={member.id} className="bg-[#0a0a0a]">
+                                        {member.name || member.username || member.id}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                        <button
+                            onClick={handleResetWarnings}
+                            disabled={isResetting || !selectedMember}
+                            className="flex items-center gap-2 bg-red-500/80 text-white font-semibold py-2 px-5 rounded-xl hover:bg-red-500 transition-all disabled:bg-gray-600 disabled:cursor-not-allowed"
+                        >
+                            {isResetting ? <Loader2 className="animate-spin w-4 h-4" /> : <RotateCcw className="w-4 h-4" />}
+                            Reset Warnings
+                        </button>
+                    </div>
+                </div>
             </div>
             <div className="mt-12">
-                <button onClick={handleSaveSettings} disabled={isSaving} className="w-48 flex items-center justify-center bg-cyan-400 text-gray-900 font-bold py-3 px-6 rounded-xl hover:bg-cyan-300 transition-all shadow-lg hover:shadow-cyan-400/40 disabled:bg-gray-500 disabled:cursor-not-allowed">
+                <button onClick={handleSaveSettings} disabled={isSaving} className="w-48 flex items-center justify-center bg-[#5865F2] text-white font-bold py-3 px-6 rounded-xl hover:bg-[#4752C4] transition-all shadow-lg hover:shadow-[#5865F2]/30 disabled:bg-gray-600 disabled:cursor-not-allowed">
                     {isSaving ? <Loader2 className="animate-spin mr-2" /> : null}
                     {isSaving ? 'Saving...' : 'Save Changes'}
                 </button>
@@ -557,48 +655,115 @@ const AutoModView = ({ showToast, selectedGuild }) => {
 };
 
 const FeedbackHelpView = ({ showToast }) => {
-    // This component remains simple and can keep its state internal
     const [feedback, setFeedback] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const handleSubmitFeedback = async () => { setIsSubmitting(true); console.log("Submitting feedback:", feedback); await new Promise(r => setTimeout(r, 1000)); showToast('Feedback submitted!', 'success'); setFeedback(''); setIsSubmitting(false); };
+    const handleSubmitFeedback = async () => {
+        setIsSubmitting(true);
+        console.log("Submitting feedback:", feedback);
+        await new Promise(r => setTimeout(r, 1000));
+        showToast('Feedback submitted!', 'success');
+        setFeedback('');
+        setIsSubmitting(false);
+    };
+
     return (
-        <div className="animate-fade-in"><h2 className="text-3xl font-bold text-white mb-2">Submit Feedback</h2><p className="text-gray-400 mb-8">Your feedback helps us improve Seromod.</p><textarea value={feedback} onChange={(e) => setFeedback(e.target.value)} className="w-full h-40 p-3 bg-gray-900 rounded-lg text-gray-200 border border-gray-700 focus:ring-2 focus:ring-cyan-400 transition mb-4 resize-none" placeholder="Your Message..." /><button onClick={handleSubmitFeedback} disabled={isSubmitting} className="w-48 flex items-center justify-center bg-cyan-400 text-gray-900 font-bold py-3 px-6 rounded-xl hover:bg-cyan-300 transition-all shadow-lg hover:shadow-cyan-400/40 disabled:bg-gray-500 disabled:cursor-not-allowed">{isSubmitting ? <Loader2 className="animate-spin mr-2" /> : null}{isSubmitting ? 'Submitting...' : 'Submit'}</button></div>
+        <div className="animate-fade-in">
+            <h2 className="text-3xl font-bold text-white mb-2">Submit Feedback</h2>
+            <p className="text-gray-400 mb-8">Your feedback helps us improve Seromod.</p>
+            <textarea value={feedback} onChange={(e) => setFeedback(e.target.value)} className="w-full h-40 p-3 bg-transparent rounded-lg text-gray-200 border-none focus:outline-none transition mb-4 resize-none placeholder-gray-500" placeholder="Your Message..." />
+            <button onClick={handleSubmitFeedback} disabled={isSubmitting} className="w-48 flex items-center justify-center bg-[#5865F2] text-white font-bold py-3 px-6 rounded-xl hover:bg-[#4752C4] transition-all shadow-lg hover:shadow-[#5865F2]/30 disabled:bg-gray-600 disabled:cursor-not-allowed">
+                {isSubmitting ? <Loader2 className="animate-spin mr-2" /> : null}
+                {isSubmitting ? 'Submitting...' : 'Submit'}
+            </button>
+
+            {/* Contact Us */}
+            <div className="mt-16">
+                <h2 className="text-3xl font-bold text-white mb-2">Contact Us</h2>
+                <p className="text-gray-400 mb-6">Have questions or need support? Reach out to us directly.</p>
+                <a
+                    href="mailto:seromod.info@gmail.com"
+                    className="inline-flex items-center gap-2 bg-[#5865F2] text-white font-bold py-3 px-6 rounded-xl hover:bg-[#4752C4] transition-all shadow-lg hover:shadow-[#5865F2]/30"
+                >
+                    <Mail className="w-5 h-5" />
+                    seromod.info@gmail.com
+                </a>
+            </div>
+        </div>
     );
 };
 
 const DashboardPage = ({ showToast, selectedGuild, onDeselectGuild }) => {
-    const [activeView, setActiveView] = useState('Overview');
+    const [activeView, setActiveView] = useState('AI Manager');
+    const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const [showDisclaimer, setShowDisclaimer] = useState(false);
     const sidebarItems = [ { name: 'Overview', icon: <LayoutDashboard /> }, { name: 'AI Manager', icon: <Bot /> }, { name: 'AutoMod', icon: <ShieldCheck /> }, { name: 'Feedback/Help', icon: <HelpCircle /> }];
 
     return (
-        <>
-            <header className="bg-gray-900/50 p-4 border-b border-cyan-400/20 mb-6 rounded-xl flex justify-between items-center animate-fade-in-down">
+        <div className="relative min-h-[calc(100vh-120px)]">
+            <header className="p-4 mb-6 rounded-xl flex justify-between items-center animate-fade-in-down">
                 <div className="flex items-center gap-4">
-                    <img src={selectedGuild.icon || `https://placehold.co/64x64/1F2937/7DD3FC?text=${selectedGuild.name.charAt(0)}`} alt="Server Icon" className="w-12 h-12 rounded-full object-cover"/>
+                    <button
+                        onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                        className="p-2 rounded-lg hover:bg-white/10 transition-colors text-gray-400 hover:text-white"
+                        title={isSidebarOpen ? 'Hide sidebar' : 'Show sidebar'}
+                    >
+                        {isSidebarOpen ? <PanelLeftClose className="w-5 h-5" /> : <PanelLeftOpen className="w-5 h-5" />}
+                    </button>
+                    <img src={selectedGuild.icon || `https://placehold.co/64x64/1a1a2e/FFFFFF?text=${selectedGuild.name.charAt(0)}`} alt="Server Icon" className="w-12 h-12 rounded-full object-cover"/>
                     <h1 className="text-2xl font-bold text-white">{selectedGuild.name}</h1>
                 </div>
-                <button onClick={onDeselectGuild} className="flex items-center gap-2 bg-gray-700/50 text-gray-300 font-semibold py-2 px-4 rounded-lg hover:bg-gray-600 transition-colors">
+                <button onClick={onDeselectGuild} className="flex items-center gap-2 bg-white/10 text-gray-300 font-semibold py-2 px-4 rounded-lg hover:bg-white/15 transition-colors">
                     <LogOut className="w-5 h-5" /> Change Server
                 </button>
             </header>
-            <div className="flex flex-col md:flex-row min-h-[calc(100vh-80px)] animate-fade-in">
-                <aside className="w-full md:w-64 bg-gray-900/50 p-6 border-r border-cyan-400/10 shrink-0 rounded-l-xl">
-                    <h2 className="text-xl font-bold text-white mb-8 hidden md:block">Settings</h2>
-                    <nav><ul className="space-y-2">{sidebarItems.map(item => (<li key={item.name}><button onClick={() => setActiveView(item.name)} className={`w-full flex items-center gap-3 p-3 rounded-lg text-left transition-colors ${activeView === item.name ? 'bg-cyan-400/10 text-cyan-300' : 'text-gray-400 hover:bg-gray-700/50 hover:text-white'}`}>{item.icon}<span className="font-semibold">{item.name}</span></button></li>))}</ul></nav>
-                </aside>
-                <main className="flex-grow p-6 md:p-10 bg-gray-900/20 rounded-r-xl">
+            <div className="flex flex-col md:flex-row animate-fade-in">
+                {isSidebarOpen && (
+                    <aside className="w-full md:w-64 p-6 shrink-0 transition-all duration-300">
+                        <h2 className="text-xl font-bold text-white mb-8 hidden md:block">Settings</h2>
+                        <nav><ul className="space-y-2">{sidebarItems.map(item => (<li key={item.name}><button onClick={() => setActiveView(item.name)} className={`w-full flex items-center gap-3 p-3 rounded-lg text-left transition-colors ${activeView === item.name ? 'text-[#5865F2]' : 'text-gray-400 hover:text-white'}`}>{item.icon}<span className="font-semibold">{item.name}</span></button></li>))}</ul></nav>
+                    </aside>
+                )}
+                <main className="flex-grow p-6 md:p-10">
                     {activeView === 'Overview' && <OverviewView selectedGuild={selectedGuild} showToast={showToast} />}
                     {activeView === 'AI Manager' && <AIManagerView showToast={showToast} selectedGuild={selectedGuild} />}
                     {activeView === 'AutoMod' && <AutoModView showToast={showToast} selectedGuild={selectedGuild} />}
                     {activeView === 'Feedback/Help' && <FeedbackHelpView showToast={showToast} />}
                 </main>
             </div>
-        </>
+
+            {/* Disclaimer toggle */}
+            <div className="fixed bottom-4 right-4 z-10">
+                <button
+                    onClick={() => setShowDisclaimer(!showDisclaimer)}
+                    className="text-gray-500 hover:text-white text-xs transition-colors underline underline-offset-2"
+                >
+                    {showDisclaimer ? 'Hide warning' : 'Show warning'}
+                </button>
+            </div>
+            {showDisclaimer && (
+                <div className="fixed bottom-0 left-0 w-full z-10 animate-fade-in">
+                    <p className="text-white bg-transparent font-bold text-sm text-center py-2">
+                        "Seromod" can make mistakes, review before taking the action.
+                    </p>
+                </div>
+            )}
+        </div>
     );
 };
 
 // --- Main App Component ---
 export default function App() {
+    // Intro overlay phase: 'intro' → 'fading' → 'done'
+    const [introPhase, setIntroPhase] = useState('intro');
+
+    const handleIntroComplete = useCallback(() => {
+        // Scrambled text finished — wait 2s, then fade out intro over 1s
+        setTimeout(() => {
+            setIntroPhase('fading');
+            setTimeout(() => setIntroPhase('done'), 1000);
+        }, 2000);
+    }, []);
+
     const [page, setPage] = useState('home');
     const [notification, setNotification] = useState(null);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -621,7 +786,7 @@ export default function App() {
             } catch (error) {
                 console.error('Failed to fetch guilds:', error);
                 showToast('Could not connect to the backend server.', 'error');
-                setGuilds([]); // Ensure guilds is an array on error
+                setGuilds([]);
             } finally {
                 setIsLoadingGuilds(false);
             }
@@ -654,7 +819,7 @@ export default function App() {
     };
     
     const NavLink = ({ pageName, children }) => (
-        <button onClick={() => handleNavigate(pageName.toLowerCase())} className={`font-semibold transition-colors pb-1 border-b-2 ${page === pageName.toLowerCase() ? 'text-cyan-300 border-cyan-300' : 'text-gray-300 border-transparent hover:text-white'}`}>{children}</button>
+        <button onClick={() => handleNavigate(pageName.toLowerCase())} className={`font-semibold  transition-colors ${page === pageName.toLowerCase() ? 'text-[#5865F2]' : 'text-gray-400 hover:text-white'}`}>{children}</button>
     );
 
     const renderPage = () => {
@@ -666,23 +831,49 @@ export default function App() {
     };
     
     return (
-        <div className="bg-gray-900 min-h-screen text-white font-sans" style={{ backgroundImage: `radial-gradient(circle at top left, rgba(0, 255, 255, 0.05), transparent 30%), radial-gradient(circle at bottom right, rgba(0, 100, 255, 0.05), transparent 30%)` }}>
-            <ToastNotification notification={notification} onClose={() => setNotification(null)} />
-            <header className="sticky top-0 z-40 bg-gray-900/80 backdrop-blur-lg border-b border-cyan-400/10">
-                <div className="container mx-auto px-6 py-4 flex justify-between items-center">
-                    <div className="flex items-center gap-2 cursor-pointer" onClick={() => handleNavigate('home')}><Bot className="text-cyan-400" size={28}/><span className="text-2xl font-bold">Seromod</span></div>
-                    <nav className="hidden md:flex items-center gap-8"><NavLink pageName="Home">Home</NavLink><NavLink pageName="Dashboard">Dashboard</NavLink><NavLink pageName="Guide">Guide</NavLink></nav>
-                    <div className="hidden md:block"><a href={DISCORD_INVITE_URL} target="_blank" rel="noopener noreferrer" className="bg-cyan-500/20 border border-cyan-400 text-cyan-300 font-bold py-2 px-5 rounded-xl hover:bg-cyan-400 hover:text-gray-900 transition-all duration-300">Add to Discord</a></div>
-                    <div className="md:hidden"><button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>{isMobileMenuOpen ? <X size={28} /> : <Menu size={28} />}</button></div>
+        <>
+            {/* ── Intro Overlay ── */}
+            {introPhase !== 'done' && (
+                <div
+                    style={{
+                        position: 'fixed',
+                        inset: 0,
+                        zIndex: 9999,
+                        opacity: introPhase === 'fading' ? 0 : 1,
+                        transition: 'opacity 1s ease-in-out',
+                        pointerEvents: introPhase === 'fading' ? 'none' : 'auto',
+                    }}
+                >
+                    <RainingLetters onComplete={handleIntroComplete} />
                 </div>
-                {isMobileMenuOpen && (
-                    <div className="md:hidden bg-gray-900/90 backdrop-blur-lg pb-4 animate-fade-in-down">
-                        <nav className="flex flex-col items-center gap-6 pt-4"><NavLink pageName="Home">Home</NavLink><NavLink pageName="Dashboard">Dashboard</NavLink><NavLink pageName="Guide">Guide</NavLink><a href={DISCORD_INVITE_URL} target="_blank" rel="noopener noreferrer" className="bg-cyan-400 text-gray-900 font-bold py-2 px-5 rounded-xl hover:bg-cyan-300 transition-all">Add to Discord</a></nav>
+            )}
+
+            {/* ── Main Site ── */}
+            <div
+                className="bg-[#0a0a0a] min-h-screen text-white font-sans"
+                style={{
+                    opacity: introPhase === 'intro' ? 0 : 1,
+                    visibility: introPhase === 'intro' ? 'hidden' : 'visible',
+                    transition: 'opacity 1s ease-in-out',
+                }}
+            >
+                <ToastNotification notification={notification} onClose={() => setNotification(null)} />
+                <header className="sticky top-0 z-40 bg-[#0a0a0a]/80 backdrop-blur-lg">
+                    <div className="container mx-auto px-6 py-4 flex justify-between items-center">
+                        <SeromodLogo onClick={() => handleNavigate('home')} />
+                        <nav className="hidden md:flex items-center gap-8"><NavLink pageName="Home">Home</NavLink><NavLink pageName="Dashboard">Dashboard</NavLink><NavLink pageName="Guide">Guide</NavLink></nav>
+                        <div className="hidden md:block"><a href={DISCORD_INVITE_URL} target="_blank" rel="noopener noreferrer" className="bg-[#5865F2] text-white font-bold py-2 px-5 rounded-xl hover:bg-[#4752C4] transition-all duration-300">Add to Discord</a></div>
+                        <div className="md:hidden"><button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>{isMobileMenuOpen ? <X size={28} /> : <Menu size={28} />}</button></div>
                     </div>
-                )}
-            </header>
-            <main className="container mx-auto px-2 py-8 md:py-12">{renderPage()}</main>
-            <footer className="bg-gray-900/50 border-t border-cyan-400/10 mt-16"><div className="container mx-auto px-6 py-6 text-center text-gray-400"><p>&copy; 2025 Seromod. All Rights Reserved.</p></div></footer>
-        </div>
+                    {isMobileMenuOpen && (
+                        <div className="md:hidden bg-[#0a0a0a]/90 backdrop-blur-lg pb-4 animate-fade-in-down">
+                            <nav className="flex flex-col items-center gap-6 pt-4"><NavLink pageName="Home">Home</NavLink><NavLink pageName="Dashboard">Dashboard</NavLink><NavLink pageName="Guide">Guide</NavLink><a href={DISCORD_INVITE_URL} target="_blank" rel="noopener noreferrer" className="bg-[#5865F2] text-white font-bold py-2 px-5 rounded-xl hover:bg-[#4752C4] transition-all">Add to Discord</a></nav>
+                        </div>
+                    )}
+                </header>
+                <main className="container mx-auto px-2 py-8 md:py-12">{renderPage()}</main>
+                <footer className="border-t border-white/5 mt-16"><div className="container mx-auto px-6 py-6 text-center text-gray-500"><p>&copy; 2025 Seromod. All Rights Reserved.</p></div></footer>
+            </div>
+        </>
     );
 }
