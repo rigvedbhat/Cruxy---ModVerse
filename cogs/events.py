@@ -12,7 +12,20 @@ class Events(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
+    @commands.Cog.listener()
+    async def on_guild_join(self, guild: discord.Guild):
+        if not discord.utils.get(guild.text_channels, name="seromod-instructions"):
+            try:
+                overwrites = {
+                    guild.default_role: discord.PermissionOverwrite(view_channel=False),
+                    guild.me: discord.PermissionOverwrite(view_channel=True)
+                }
+                await guild.create_text_channel("seromod-instructions", overwrites=overwrites)
+            except Exception as e:
+                log.warning("Could not create instructions channel in %s: %s", guild.name, e)
+
     @app_commands.command(name="event", description="Schedule an upcoming event.")
+    @app_commands.checks.has_permissions(manage_events=True)
     @app_commands.describe(
         name="Name of the event",
         date="Date of the event (YYYY-MM-DD)",
@@ -64,6 +77,15 @@ class Events(commands.Cog):
             if reminder_time <= now:
                 await interaction.followup.send(
                     "The reminder time must also be in the future! Please set a lower reminder time."
+                )
+                return
+
+            active_event_count_row = await self.bot.db.get_active_event_count(guild.id)
+            if active_event_count_row >= 50:
+                await interaction.followup.send(
+                    "This server has reached the maximum of 50 active scheduled events. "
+                    "Please wait for existing events to complete.",
+                    ephemeral=True,
                 )
                 return
 

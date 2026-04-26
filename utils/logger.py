@@ -20,7 +20,7 @@ def setup_logging():
         root.addHandler(handler)
 
     logging.getLogger("discord").setLevel(logging.WARNING)
-    logging.getLogger("aiosqlite").setLevel(logging.WARNING)
+    logging.getLogger("asyncpg").setLevel(logging.WARNING)
 
     return logging.getLogger("seromod")
 
