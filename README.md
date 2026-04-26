@@ -37,7 +37,7 @@ Managing a Discord server often involves repetitive work like configuring channe
 
 ## Environment Setup
 
-Create a `.env` file in the project root from `.env.example` and fill in the required values:
+Create a `.env` file in the project root and fill in the required values:
 
 ```env
 DISCORD_TOKEN=
@@ -51,7 +51,7 @@ SYNC_COMMANDS=false
 
 Set `SYNC_COMMANDS=true` only when slash commands have changed and you want to push a one-time global sync.
 
-For the dashboard, create `dashboard/.env` from `dashboard/.env.example`:
+For the dashboard, create `dashboard/.env` with:
 
 ```env
 VITE_API_URL=http://localhost:5000

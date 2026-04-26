@@ -1,264 +1,455 @@
-import aiosqlite
+import json
+import logging
+import os
+import time
+from typing import Optional
+
+import asyncpg
+
+from utils.cache import cache_del, cache_get, cache_set
+
+log = logging.getLogger(__name__)
+
+_SUBSCRIPTION_TIER_TTL_SECONDS = 60
+_subscription_tier_cache: dict[int, tuple[float, str]] = {}
 
 
 class PersistentDB:
     def __init__(self, path="bot_data.db"):
         self.path = path
-        self.conn = None
+        self.pool: Optional[asyncpg.Pool] = None
 
     async def connect(self):
-        if self.conn:
-            return
+        if self.pool is not None:
+            try:
+                async with self.pool.acquire() as conn:
+                    await conn.execute("SELECT 1")
+                return
+            except Exception:
+                log.warning("Existing PostgreSQL pool is unhealthy. Reconnecting...")
+                await self.close()
 
-        self.conn = await aiosqlite.connect(self.path, timeout=10)
-        await self.conn.execute("PRAGMA foreign_keys = ON;")
-        await self.conn.execute("PRAGMA journal_mode=WAL;")
+        database_url = os.getenv("DATABASE_URL", "").strip()
+        if not database_url and str(self.path).startswith(("postgresql://", "postgres://")):
+            database_url = str(self.path)
+        if not database_url:
+            raise RuntimeError("DATABASE_URL is required for PostgreSQL.")
 
-        await self.conn.execute(
+        self.pool = await asyncpg.create_pool(
+            dsn=database_url,
+            min_size=2,
+            max_size=10,
+            command_timeout=10,
+        )
+
+        try:
+            async with self.pool.acquire() as conn:
+                await self._initialize_schema(conn)
+        except Exception:
+            await self.close()
+            raise
+
+    async def _initialize_schema(self, conn: asyncpg.Connection):
+        schema_statements = [
+            """
+            CREATE TABLE IF NOT EXISTS _migrations (
+                name TEXT PRIMARY KEY,
+                applied_at BIGINT NOT NULL
+            )
+            """,
             """
             CREATE TABLE IF NOT EXISTS automod_settings (
-                guild_id INTEGER PRIMARY KEY,
-                profanity_filter_enabled BOOLEAN DEFAULT 1,
+                guild_id BIGINT PRIMARY KEY,
+                profanity_filter_enabled BOOLEAN DEFAULT TRUE,
                 warning_limit INTEGER DEFAULT 3,
                 punishment_type TEXT DEFAULT 'kick'
             )
-            """
-        )
-
-        await self.conn.execute(
+            """,
             """
             CREATE TABLE IF NOT EXISTS warnings (
-                guild_id INTEGER NOT NULL,
-                user_id INTEGER NOT NULL,
+                guild_id BIGINT NOT NULL,
+                user_id BIGINT NOT NULL,
                 count INTEGER DEFAULT 1,
                 PRIMARY KEY (guild_id, user_id)
             )
-            """
-        )
-
-        await self.conn.execute(
+            """,
             """
             CREATE TABLE IF NOT EXISTS user_data (
-                guild_id INTEGER NOT NULL,
-                user_id INTEGER NOT NULL,
+                guild_id BIGINT NOT NULL,
+                user_id BIGINT NOT NULL,
                 xp INTEGER DEFAULT 0,
                 level INTEGER DEFAULT 0,
                 PRIMARY KEY (guild_id, user_id)
             )
-            """
-        )
-
-        await self.conn.execute(
+            """,
             """
             CREATE TABLE IF NOT EXISTS afk_users (
-                guild_id INTEGER NOT NULL,
-                user_id INTEGER NOT NULL,
+                guild_id BIGINT NOT NULL,
+                user_id BIGINT NOT NULL,
                 message TEXT,
                 PRIMARY KEY (guild_id, user_id)
             )
-            """
-        )
-
-        await self.conn.execute(
+            """,
             """
             CREATE TABLE IF NOT EXISTS reaction_roles (
-                message_id INTEGER PRIMARY KEY,
-                guild_id INTEGER NOT NULL,
-                channel_id INTEGER NOT NULL
+                message_id BIGINT PRIMARY KEY,
+                guild_id BIGINT NOT NULL,
+                channel_id BIGINT NOT NULL
             )
-            """
-        )
-
-        await self.conn.execute(
+            """,
             """
             CREATE TABLE IF NOT EXISTS reaction_role_mappings (
-                message_id INTEGER NOT NULL,
+                message_id BIGINT NOT NULL,
                 emoji TEXT NOT NULL,
-                role_id INTEGER NOT NULL,
+                role_id BIGINT NOT NULL,
                 PRIMARY KEY (message_id, emoji),
                 FOREIGN KEY (message_id) REFERENCES reaction_roles(message_id) ON DELETE CASCADE
             )
-            """
-        )
-
-        await self.conn.execute(
+            """,
             """
             CREATE TABLE IF NOT EXISTS scheduled_events (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                guild_id INTEGER NOT NULL,
-                channel_id INTEGER NOT NULL,
+                id BIGSERIAL PRIMARY KEY,
+                guild_id BIGINT NOT NULL,
+                channel_id BIGINT NOT NULL,
                 event_name TEXT NOT NULL,
                 description TEXT,
-                event_time INTEGER NOT NULL,
-                reminder_time INTEGER NOT NULL,
-                ping_role_id INTEGER,
-                reminder_sent BOOLEAN DEFAULT 0
+                event_time BIGINT NOT NULL,
+                reminder_time BIGINT NOT NULL,
+                ping_role_id BIGINT,
+                reminder_sent BOOLEAN DEFAULT FALSE
             )
+            """,
             """
+            CREATE TABLE IF NOT EXISTS subscriptions (
+                guild_id BIGINT PRIMARY KEY,
+                tier TEXT NOT NULL DEFAULT 'free',
+                stripe_subscription_id TEXT,
+                expires_at BIGINT
+            )
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS build_jobs (
+                id TEXT PRIMARY KEY,
+                guild_id BIGINT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'pending',
+                result_message TEXT,
+                created_at BIGINT NOT NULL,
+                updated_at BIGINT NOT NULL
+            )
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_warnings_guild_user
+            ON warnings(guild_id, user_id)
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_user_data_guild_user
+            ON user_data(guild_id, user_id)
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_scheduled_events_reminder
+            ON scheduled_events(reminder_time, reminder_sent)
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_automod_guild
+            ON automod_settings(guild_id)
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_build_jobs_guild
+            ON build_jobs(guild_id)
+            """,
+        ]
+
+        async with conn.transaction():
+            for statement in schema_statements:
+                await conn.execute(statement)
+
+            await self._run_migration(
+                conn,
+                "add_automod_settings_punishment_type",
+                "ALTER TABLE automod_settings "
+                "ADD COLUMN IF NOT EXISTS punishment_type TEXT DEFAULT 'kick'",
+            )
+
+    async def _run_migration(
+        self,
+        conn: asyncpg.Connection,
+        name: str,
+        statement: str,
+    ):
+        exists = await conn.fetchval(
+            "SELECT 1 FROM _migrations WHERE name = $1",
+            name,
+        )
+        if exists:
+            return
+
+        await conn.execute(statement)
+        await conn.execute(
+            "INSERT INTO _migrations (name, applied_at) VALUES ($1, $2)",
+            name,
+            int(time.time()),
         )
 
-        migration_stmts = [
-            "ALTER TABLE automod_settings ADD COLUMN punishment_type TEXT DEFAULT 'kick'",
-        ]
-        for stmt in migration_stmts:
-            try:
-                await self.conn.execute(stmt)
-            except Exception:
-                pass
-
-        await self.conn.commit()
+    async def _ensure_connected(self):
+        if self.pool is None:
+            await self.connect()
+            return
+        try:
+            async with self.pool.acquire() as conn:
+                await conn.execute("SELECT 1")
+        except Exception:
+            log.warning("PostgreSQL pool check failed. Reconnecting...")
+            await self.close()
+            await self.connect()
 
     async def close(self):
-        if self.conn:
-            await self.conn.close()
-            self.conn = None
+        if self.pool is not None:
+            await self.pool.close()
+            self.pool = None
 
     async def add_warning(self, guild_id, user_id):
-        await self.conn.execute(
-            "INSERT INTO warnings (guild_id, user_id, count) VALUES (?, ?, 1) "
-            "ON CONFLICT(guild_id, user_id) DO UPDATE SET count = count + 1",
-            (guild_id, user_id),
-        )
-        await self.conn.commit()
-
-        async with self.conn.execute(
-            "SELECT count FROM warnings WHERE guild_id=? AND user_id=?",
-            (guild_id, user_id),
-        ) as cursor:
-            row = await cursor.fetchone()
-            return row[0] if row else 0
+        await self._ensure_connected()
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                await conn.execute(
+                    """
+                    INSERT INTO warnings (guild_id, user_id, count)
+                    VALUES ($1, $2, 1)
+                    ON CONFLICT (guild_id, user_id)
+                    DO UPDATE SET count = warnings.count + 1
+                    """,
+                    guild_id,
+                    user_id,
+                )
+                return await conn.fetchval(
+                    "SELECT count FROM warnings WHERE guild_id = $1 AND user_id = $2",
+                    guild_id,
+                    user_id,
+                ) or 0
 
     async def get_warnings(self, guild_id, user_id):
-        async with self.conn.execute(
-            "SELECT count FROM warnings WHERE guild_id=? AND user_id=?",
-            (guild_id, user_id),
-        ) as cursor:
-            row = await cursor.fetchone()
-            return row[0] if row else 0
+        await self._ensure_connected()
+        async with self.pool.acquire() as conn:
+            return await conn.fetchval(
+                "SELECT count FROM warnings WHERE guild_id = $1 AND user_id = $2",
+                guild_id,
+                user_id,
+            ) or 0
 
     async def reset_warnings(self, guild_id, user_id):
-        await self.conn.execute(
-            "DELETE FROM warnings WHERE guild_id=? AND user_id=?",
-            (guild_id, user_id),
-        )
-        await self.conn.commit()
+        await self._ensure_connected()
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                "DELETE FROM warnings WHERE guild_id = $1 AND user_id = $2",
+                guild_id,
+                user_id,
+            )
 
     async def get_automod_settings(self, guild_id):
-        async with self.conn.execute(
-            "SELECT profanity_filter_enabled, warning_limit, punishment_type "
-            "FROM automod_settings WHERE guild_id=?",
-            (guild_id,),
-        ) as cursor:
-            row = await cursor.fetchone()
-            if row:
-                return {
-                    "profanityFilter": bool(row[0]),
-                    "warningLimit": row[1],
-                    "limitAction": row[2],
-                }
-        return {
-            "profanityFilter": True,
-            "warningLimit": 3,
-            "limitAction": "kick",
-        }
+        await self._ensure_connected()
+        cache_key = f"automod:{guild_id}"
+        cached = cache_get(cache_key)
+        if cached:
+            try:
+                return json.loads(cached)
+            except json.JSONDecodeError:
+                pass
+
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT profanity_filter_enabled, warning_limit, punishment_type
+                FROM automod_settings
+                WHERE guild_id = $1
+                """,
+                guild_id,
+            )
+
+        settings = (
+            {
+                "profanityFilter": bool(row["profanity_filter_enabled"]),
+                "warningLimit": row["warning_limit"],
+                "limitAction": row["punishment_type"],
+            }
+            if row
+            else {
+                "profanityFilter": True,
+                "warningLimit": 3,
+                "limitAction": "kick",
+            }
+        )
+        cache_set(cache_key, json.dumps(settings), ex=60)
+        return settings
 
     async def set_automod_settings(self, guild_id, profanity_filter, limit, punishment):
-        await self.conn.execute(
-            "INSERT OR REPLACE INTO automod_settings "
-            "(guild_id, profanity_filter_enabled, warning_limit, punishment_type) "
-            "VALUES (?, ?, ?, ?)",
-            (guild_id, profanity_filter, limit, punishment),
-        )
-        await self.conn.commit()
+        await self._ensure_connected()
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO automod_settings (
+                    guild_id,
+                    profanity_filter_enabled,
+                    warning_limit,
+                    punishment_type
+                )
+                VALUES ($1, $2, $3, $4)
+                ON CONFLICT (guild_id)
+                DO UPDATE SET
+                    profanity_filter_enabled = EXCLUDED.profanity_filter_enabled,
+                    warning_limit = EXCLUDED.warning_limit,
+                    punishment_type = EXCLUDED.punishment_type
+                """,
+                guild_id,
+                bool(profanity_filter),
+                int(limit),
+                str(punishment),
+            )
+        cache_del(f"automod:{guild_id}")
 
     async def add_xp(self, guild_id, user_id, xp_to_add):
-        await self.conn.execute(
-            "INSERT OR IGNORE INTO user_data (guild_id, user_id, xp, level) VALUES (?, ?, 0, 0)",
-            (guild_id, user_id),
-        )
-        await self.conn.execute(
-            "UPDATE user_data SET xp = xp + ? WHERE guild_id = ? AND user_id = ?",
-            (xp_to_add, guild_id, user_id),
-        )
+        await self._ensure_connected()
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                await conn.execute(
+                    """
+                    INSERT INTO user_data (guild_id, user_id, xp, level)
+                    VALUES ($1, $2, 0, 0)
+                    ON CONFLICT (guild_id, user_id) DO NOTHING
+                    """,
+                    guild_id,
+                    user_id,
+                )
+                await conn.execute(
+                    """
+                    UPDATE user_data
+                    SET xp = xp + $1
+                    WHERE guild_id = $2 AND user_id = $3
+                    """,
+                    xp_to_add,
+                    guild_id,
+                    user_id,
+                )
 
-        async with self.conn.execute(
-            "SELECT xp, level FROM user_data WHERE guild_id=? AND user_id=?",
-            (guild_id, user_id),
-        ) as cursor:
-            row = await cursor.fetchone()
-            xp, level = row if row else (0, 0)
+                row = await conn.fetchrow(
+                    "SELECT xp, level FROM user_data WHERE guild_id = $1 AND user_id = $2",
+                    guild_id,
+                    user_id,
+                )
+                xp, level = (row["xp"], row["level"]) if row else (0, 0)
 
-        required_xp = (level + 1) * 100
-        if xp >= required_xp:
-            new_level = level + 1
-            new_xp = xp - required_xp
-            await self.conn.execute(
-                "UPDATE user_data SET level = ?, xp = ? WHERE guild_id = ? AND user_id = ?",
-                (new_level, new_xp, guild_id, user_id),
-            )
-            await self.conn.commit()
-            return new_level
-
-        await self.conn.commit()
-        return None
+                required_xp = (level + 1) * 100
+                if xp >= required_xp:
+                    new_level = level + 1
+                    new_xp = xp - required_xp
+                    await conn.execute(
+                        """
+                        UPDATE user_data
+                        SET level = $1, xp = $2
+                        WHERE guild_id = $3 AND user_id = $4
+                        """,
+                        new_level,
+                        new_xp,
+                        guild_id,
+                        user_id,
+                    )
+                    return new_level
+                return None
 
     async def get_xp_and_level(self, guild_id, user_id):
-        async with self.conn.execute(
-            "SELECT xp, level FROM user_data WHERE guild_id=? AND user_id=?",
-            (guild_id, user_id),
-        ) as cursor:
-            row = await cursor.fetchone()
-            return (row[0], row[1]) if row else (0, 0)
+        await self._ensure_connected()
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT xp, level FROM user_data WHERE guild_id = $1 AND user_id = $2",
+                guild_id,
+                user_id,
+            )
+            return (row["xp"], row["level"]) if row else (0, 0)
 
     async def set_afk(self, guild_id, user_id, message):
-        await self.conn.execute(
-            "INSERT OR REPLACE INTO afk_users (guild_id, user_id, message) VALUES (?, ?, ?)",
-            (guild_id, user_id, message),
-        )
-        await self.conn.commit()
+        await self._ensure_connected()
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO afk_users (guild_id, user_id, message)
+                VALUES ($1, $2, $3)
+                ON CONFLICT (guild_id, user_id)
+                DO UPDATE SET message = EXCLUDED.message
+                """,
+                guild_id,
+                user_id,
+                message,
+            )
 
     async def remove_afk(self, guild_id, user_id):
-        await self.conn.execute(
-            "DELETE FROM afk_users WHERE guild_id=? AND user_id=?",
-            (guild_id, user_id),
-        )
-        await self.conn.commit()
+        await self._ensure_connected()
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                "DELETE FROM afk_users WHERE guild_id = $1 AND user_id = $2",
+                guild_id,
+                user_id,
+            )
 
     async def get_afk_user(self, guild_id, user_id):
-        async with self.conn.execute(
-            "SELECT message FROM afk_users WHERE guild_id=? AND user_id=?",
-            (guild_id, user_id),
-        ) as cursor:
-            row = await cursor.fetchone()
-            return row[0] if row else None
+        await self._ensure_connected()
+        async with self.pool.acquire() as conn:
+            return await conn.fetchval(
+                "SELECT message FROM afk_users WHERE guild_id = $1 AND user_id = $2",
+                guild_id,
+                user_id,
+            )
 
     async def add_reaction_role(self, message_id, guild_id, channel_id, emoji, role_id):
-        await self.conn.execute(
-            "INSERT OR IGNORE INTO reaction_roles (message_id, guild_id, channel_id) VALUES (?, ?, ?)",
-            (message_id, guild_id, channel_id),
-        )
-        await self.conn.execute(
-            "INSERT OR REPLACE INTO reaction_role_mappings (message_id, emoji, role_id) VALUES (?, ?, ?)",
-            (message_id, emoji, role_id),
-        )
-        await self.conn.commit()
+        await self._ensure_connected()
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                await conn.execute(
+                    """
+                    INSERT INTO reaction_roles (message_id, guild_id, channel_id)
+                    VALUES ($1, $2, $3)
+                    ON CONFLICT (message_id) DO NOTHING
+                    """,
+                    message_id,
+                    guild_id,
+                    channel_id,
+                )
+                await conn.execute(
+                    """
+                    INSERT INTO reaction_role_mappings (message_id, emoji, role_id)
+                    VALUES ($1, $2, $3)
+                    ON CONFLICT (message_id, emoji)
+                    DO UPDATE SET role_id = EXCLUDED.role_id
+                    """,
+                    message_id,
+                    str(emoji),
+                    role_id,
+                )
 
     async def get_reaction_role(self, message_id, emoji):
-        async with self.conn.execute(
-            "SELECT role_id FROM reaction_role_mappings WHERE message_id=? AND emoji=?",
-            (message_id, str(emoji)),
-        ) as cursor:
-            row = await cursor.fetchone()
-            return row[0] if row else None
+        await self._ensure_connected()
+        async with self.pool.acquire() as conn:
+            return await conn.fetchval(
+                """
+                SELECT role_id
+                FROM reaction_role_mappings
+                WHERE message_id = $1 AND emoji = $2
+                """,
+                message_id,
+                str(emoji),
+            )
 
     async def get_all_reaction_roles(self):
+        await self._ensure_connected()
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT message_id, emoji, role_id FROM reaction_role_mappings"
+            )
+
         roles = {}
-        query = "SELECT message_id, emoji, role_id FROM reaction_role_mappings"
-        async with self.conn.execute(query) as cursor:
-            async for message_id, emoji, role_id in cursor:
-                if message_id not in roles:
-                    roles[message_id] = {}
-                roles[message_id][emoji] = role_id
+        for row in rows:
+            message_id = row["message_id"]
+            if message_id not in roles:
+                roles[message_id] = {}
+            roles[message_id][row["emoji"]] = row["role_id"]
         return roles
 
     async def add_event(
@@ -271,13 +462,21 @@ class PersistentDB:
         reminder_ts,
         ping_role_id=None,
     ):
-        await self.conn.execute(
-            """
-            INSERT INTO scheduled_events
-            (guild_id, channel_id, event_name, description, event_time, reminder_time, ping_role_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
+        await self._ensure_connected()
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO scheduled_events (
+                    guild_id,
+                    channel_id,
+                    event_name,
+                    description,
+                    event_time,
+                    reminder_time,
+                    ping_role_id
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                """,
                 guild_id,
                 channel_id,
                 name,
@@ -285,24 +484,138 @@ class PersistentDB:
                 int(event_ts),
                 int(reminder_ts),
                 ping_role_id,
-            ),
-        )
-        await self.conn.commit()
+            )
+
+    async def get_active_event_count(self, guild_id: int) -> int:
+        await self._ensure_connected()
+        async with self.pool.acquire() as conn:
+            return await conn.fetchval(
+                """
+                SELECT COUNT(*)
+                FROM scheduled_events
+                WHERE guild_id = $1 AND reminder_sent = FALSE
+                """,
+                guild_id,
+            ) or 0
 
     async def get_pending_reminders(self, now_ts):
-        async with self.conn.execute(
-            """
-            SELECT id, guild_id, channel_id, event_name, description, event_time, ping_role_id
-            FROM scheduled_events
-            WHERE reminder_time <= ? AND reminder_sent = 0
-            """,
-            (int(now_ts),),
-        ) as cursor:
-            return await cursor.fetchall()
+        await self._ensure_connected()
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT id, guild_id, channel_id, event_name, description, event_time, ping_role_id
+                FROM scheduled_events
+                WHERE reminder_time <= $1 AND reminder_sent = FALSE
+                ORDER BY reminder_time ASC
+                """,
+                int(now_ts),
+            )
+        return [
+            (
+                row["id"],
+                row["guild_id"],
+                row["channel_id"],
+                row["event_name"],
+                row["description"],
+                row["event_time"],
+                row["ping_role_id"],
+            )
+            for row in rows
+        ]
 
     async def mark_reminder_sent(self, event_id):
-        await self.conn.execute(
-            "UPDATE scheduled_events SET reminder_sent = 1 WHERE id = ?",
-            (event_id,),
+        await self._ensure_connected()
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE scheduled_events SET reminder_sent = TRUE WHERE id = $1",
+                event_id,
+            )
+
+    async def get_subscription_tier(self, guild_id: int) -> str:
+        now = time.monotonic()
+        cached = _subscription_tier_cache.get(guild_id)
+        if cached and cached[0] > now:
+            return cached[1]
+
+        cache_key = f"sub:{guild_id}"
+        cached_tier = cache_get(cache_key)
+        if isinstance(cached_tier, str) and cached_tier:
+            _subscription_tier_cache[guild_id] = (
+                now + _SUBSCRIPTION_TIER_TTL_SECONDS,
+                cached_tier,
+            )
+            return cached_tier
+
+        await self._ensure_connected()
+        async with self.pool.acquire() as conn:
+            tier = await conn.fetchval(
+                "SELECT tier FROM subscriptions WHERE guild_id = $1",
+                guild_id,
+            )
+
+        resolved_tier = tier or "free"
+        _subscription_tier_cache[guild_id] = (
+            now + _SUBSCRIPTION_TIER_TTL_SECONDS,
+            resolved_tier,
         )
-        await self.conn.commit()
+        cache_set(cache_key, resolved_tier, ex=60)
+        return resolved_tier
+
+    async def get_guild_members(self, guild_id: int) -> list[dict]:
+        await self._ensure_connected()
+        return []
+
+    async def create_build_job(
+        self,
+        job_id: str,
+        guild_id: int,
+        status: str = "pending",
+        result_message: Optional[str] = None,
+    ):
+        await self._ensure_connected()
+        now = int(time.time())
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO build_jobs (id, guild_id, status, result_message, created_at, updated_at)
+                VALUES ($1, $2, $3, $4, $5, $5)
+                """,
+                job_id,
+                guild_id,
+                status,
+                result_message,
+                now,
+            )
+
+    async def update_build_job(
+        self,
+        job_id: str,
+        status: str,
+        result_message: Optional[str] = None,
+    ):
+        await self._ensure_connected()
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                """
+                UPDATE build_jobs
+                SET status = $2, result_message = $3, updated_at = $4
+                WHERE id = $1
+                """,
+                job_id,
+                status,
+                result_message,
+                int(time.time()),
+            )
+
+    async def get_build_job(self, job_id: str):
+        await self._ensure_connected()
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT id, guild_id, status, result_message, created_at, updated_at
+                FROM build_jobs
+                WHERE id = $1
+                """,
+                job_id,
+            )
+        return dict(row) if row else None
